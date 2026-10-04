@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    function autorizado() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['pessoa1@example.com', 'pessoa2@example.com'];
+    }
+
+    function membro(viagemId) {
+      return autorizado()
+        && request.auth.token.email in
+           get(/databases/$(db)/documents/viagens/$(viagemId)).data.membrosEmails;
+    }
+
+    match /viagens/{viagemId} {
+      allow read, update, delete: if autorizado()
+        && request.auth.token.email in resource.data.membrosEmails;
+      allow create: if autorizado()
+        && request.auth.token.email in request.resource.data.membrosEmails;
+
+      match /{sub}/{docId} {
+        allow read, write: if membro(viagemId);
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

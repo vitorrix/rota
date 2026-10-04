@@ -1,0 +1,7 @@
+firestore.rules
+.firebaserc
+firebase.json
+.firebase/
+.DS_Store
+node_modules/
+*.log

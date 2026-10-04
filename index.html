@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rota</title>
+<meta name="theme-color" content="#FFF6E5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rota">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+/* ===== Tema (paleta Recife: mar, sol, frevo) ===== */
+:root{
+  /* claro: areia + mar */
+  --bg:#FFF6E5; --s1:#FFFFFF; --s2:#FFEBC9; --line:#F3DDB6;
+  --tx:#14304A; --tx2:#667C90;
+  --acc:#00A5B5; --acc-tx:#FFFFFF; --coral:#FF6B4A; --sun:#FFC400; --pink:#FF4FA3;
+  --ok:#0DB36B; --warn:#F59E0B; --bad:#E5383B;
+  --hero1:#00B7C7; --hero2:#2F7DFF;
+  --nav-h:62px;
+}
+:root[data-theme="dark"]{
+  /* escuro: mar à noite */
+  --bg:#08202F; --s1:#0F3147; --s2:#16435E; --line:#1F5775;
+  --tx:#F4FAFD; --tx2:#9DBAD0;
+  --acc:#2DD9E8; --acc-tx:#052330; --coral:#FF8466; --sun:#FFD23F; --pink:#FF6DB4;
+  --ok:#2BD58B; --warn:#FFB938; --bad:#FF6467;
+  --hero1:#0796B0; --hero2:#2B5FE0;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme]){
+    --bg:#08202F; --s1:#0F3147; --s2:#16435E; --line:#1F5775;
+    --tx:#F4FAFD; --tx2:#9DBAD0;
+    --acc:#2DD9E8; --acc-tx:#052330; --coral:#FF8466; --sun:#FFD23F; --pink:#FF6DB4;
+    --ok:#2BD58B; --warn:#FFB938; --bad:#FF6467;
+    --hero1:#0796B0; --hero2:#2B5FE0;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);
+  font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro",system-ui,sans-serif;
+  -webkit-text-size-adjust:100%}
+body{min-height:100dvh}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--acc)}
+h1,h2,h3{margin:0}
+.hidden{display:none!important}
+
+/* ===== Layout ===== */
+#app{max-width:640px;margin:0 auto;min-height:100dvh}
+.screen{padding:calc(env(safe-area-inset-top) + 16px) 16px 24px}
+.main{padding:calc(env(safe-area-inset-top) + 14px) 14px calc(var(--nav-h) + env(safe-area-inset-bottom) + 90px)}
+.main::before,.screen::before{content:"";display:block;height:6px;margin:-14px -14px 14px;
+  background:repeating-linear-gradient(90deg,var(--coral) 0 24px,var(--sun) 24px 48px,var(--acc) 48px 72px,var(--pink) 72px 96px)}
+.top{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 14px}
+.top h1{font-size:22px;font-weight:700}
+.top small{color:var(--tx2)}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:12px}
+.card h3{font-size:13px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
+.row{display:flex;align-items:center;gap:10px}
+.between{justify-content:space-between}
+.grow{flex:1;min-width:0}
+.muted{color:var(--tx2)}
+.small{font-size:13px}
+.num{font-variant-numeric:tabular-nums}
+.center{text-align:center}
+.mt{margin-top:10px}
+
+/* ===== Botões ===== */
+.btn{border:0;border-radius:12px;padding:12px 16px;background:var(--s2);font-weight:600;min-height:44px}
+.btn.pri{background:var(--acc);color:var(--acc-tx)}
+.btn.bad{background:var(--bad);color:#fff}
+.btn.ghost{background:transparent;border:1px solid var(--line)}
+.btn.sm{padding:8px 12px;min-height:36px;font-size:14px;border-radius:10px}
+.btn.block{display:block;width:100%}
+.fab{position:fixed;right:16px;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);z-index:20;
+  background:var(--coral);color:#fff;border:0;border-radius:999px;padding:14px 20px;font-weight:700;
+  box-shadow:0 6px 20px rgba(255,107,74,.45)}
+
+/* ===== Navegação ===== */
+nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--s1);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom)}
+nav .in{max-width:640px;margin:0 auto;display:flex;height:var(--nav-h)}
+nav button{flex:1;background:none;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;color:var(--tx2);font-size:11px}
+nav button .ic{font-size:21px;line-height:1}
+nav button.on{color:var(--acc)}
+
+/* ===== Chips / selos ===== */
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--s1);border-radius:999px;padding:7px 13px;font-size:14px}
+.chip.on{background:var(--acc);color:var(--acc-tx);border-color:var(--acc)}
+.badge{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600}
+.b-ok{background:rgba(0,200,128,.16);color:var(--ok)}
+.b-warn{background:rgba(245,183,0,.16);color:var(--warn)}
+.b-bad{background:rgba(255,77,79,.16);color:var(--bad)}
+.b-muted{background:var(--s2);color:var(--tx2)}
+.seg{display:flex;background:var(--s2);border-radius:12px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;border:0;background:none;padding:8px;border-radius:10px;font-weight:600;color:var(--tx2)}
+.seg button.on{background:var(--s1);color:var(--tx)}
+
+/* ===== Alertas ===== */
+.alert{border-radius:14px;padding:12px 14px;margin-bottom:10px;border:1px solid;font-size:15px}
+.alert.warn{background:rgba(245,183,0,.12);border-color:rgba(245,183,0,.5)}
+.alert.bad{background:rgba(255,77,79,.12);border-color:rgba(255,77,79,.5)}
+.alert.coral{background:rgba(255,122,89,.12);border-color:rgba(255,122,89,.5)}
+.alert b{display:block}
+
+/* ===== Painel ===== */
+.hero{padding:18px;border-radius:22px;background:linear-gradient(135deg,var(--hero1),var(--hero2));color:#fff;margin-bottom:12px;box-shadow:0 8px 22px rgba(0,120,170,.25)}
+.hero:has(.big.neg){background:linear-gradient(135deg,#FF7A59,#E5383B)}
+.hero .muted,.hero .lbl{color:rgba(255,255,255,.88)}
+.hero .lbl{font-size:13px;color:rgba(255,255,255,.9);text-transform:uppercase;letter-spacing:.05em}
+.hero .big{font-size:40px;font-weight:800;margin:4px 0;letter-spacing:-.02em}
+.hero .big.pos,.hero .big.neg{color:#fff}.big.pos{color:var(--ok)}.big.neg{color:var(--bad)}
+.count{font-size:15px;color:var(--acc);font-weight:600;margin:0 2px 10px}
+.bar{display:flex;height:16px;border-radius:8px;overflow:hidden;background:var(--s2);margin:8px 0 10px}
+.bar i{display:block;height:100%}
+.legend{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:13px}
+.legend b{display:block;font-size:15px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.hbar{height:8px;border-radius:4px;background:var(--s2);overflow:hidden;margin-top:4px}
+.hbar i{display:block;height:100%;background:var(--acc)}
+
+/* ===== Listas ===== */
+.day{display:flex;justify-content:space-between;color:var(--tx2);font-size:13px;font-weight:600;margin:16px 4px 6px;text-transform:uppercase;letter-spacing:.03em}
+.item{display:flex;align-items:center;gap:12px;background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:11px 13px;margin-bottom:8px;width:100%;text-align:left}
+.item .ico{font-size:24px;width:34px;text-align:center}
+.item .v{font-weight:700;font-variant-numeric:tabular-nums}
+.item.prev{border-style:dashed;opacity:.85}
+.res{border-left:5px solid var(--line);padding-left:12px}
+.res.s-confirmada{border-left-color:var(--ok)}
+.res.s-pendente{border-left-color:var(--warn)}
+.res.s-problema{border-left-color:var(--bad)}
+.res.s-cancelada{border-left-color:var(--tx2);opacity:.6}
+.code{font:600 17px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em;user-select:none;-webkit-user-select:none;
+  -webkit-touch-callout:none;background:var(--s2);border-radius:10px;padding:8px 12px;display:inline-block;touch-action:manipulation}
+.kv{font-size:14px;margin:4px 0}
+.kv span{color:var(--tx2)}
+.warnbox{background:rgba(255,77,79,.10);border:1px solid rgba(255,77,79,.4);border-radius:10px;padding:8px 10px;font-size:14px;margin:8px 0}
+.infobox{background:rgba(245,183,0,.10);border:1px solid rgba(245,183,0,.4);border-radius:10px;padding:8px 10px;font-size:14px;margin:8px 0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.contact.susp{border-color:var(--bad);background:rgba(255,77,79,.07)}
+.menu .item{font-size:17px}
+.menu .item span.chev{margin-left:auto;color:var(--tx2)}
+
+/* ===== Hoje ===== */
+.daynav{display:flex;align-items:stretch;gap:8px;margin-bottom:12px}
+.daynav button{background:var(--s1);border:1px solid var(--line);border-radius:14px;font-size:24px;width:52px;color:var(--tx)}
+.daynav button:disabled{opacity:.3}
+.daynav .mid{flex:1;font-size:16px;padding:8px;line-height:1.25}
+.plan{display:flex;gap:12px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:11px 0;margin-top:2px}
+.plan:first-of-type{margin-top:8px}
+.plan .hr{width:48px;color:var(--acc);font-weight:700}
+.check{display:flex;align-items:center;gap:12px;padding:10px 0;font-size:16px}
+.check input{width:22px;height:22px;accent-color:var(--acc)}
+
+/* ===== Sheet / formulários ===== */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;max-width:640px;margin:0 auto;background:var(--s1);
+  border-radius:22px 22px 0 0;padding:16px 16px calc(env(safe-area-inset-bottom) + 16px);max-height:92dvh;overflow-y:auto;
+  border-top:1px solid var(--line)}
+.sheet h2{font-size:18px;margin-bottom:12px}
+label.f{display:block;margin-bottom:12px;font-size:13px;color:var(--tx2)}
+label.f>input,label.f>select,label.f>textarea{display:block;width:100%;margin-top:4px;background:var(--s2);border:1px solid var(--line);
+  border-radius:12px;padding:11px 12px;color:var(--tx);font-size:16px}
+label.f>textarea{min-height:72px;resize:vertical}
+input.big{width:100%;font-size:38px;font-weight:800;text-align:center;background:var(--s2);border:1px solid var(--line);
+  border-radius:16px;padding:12px;color:var(--tx);margin-bottom:12px}
+.cats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.cats label,.pick label{position:relative}
+.cats input,.pick input{position:absolute;opacity:0;pointer-events:none}
+.cats span{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 4px;background:var(--s2);border:2px solid transparent;
+  border-radius:14px;font-size:13px}
+.cats span em{font-style:normal;font-size:28px}
+.cats input:checked+span{border-color:var(--acc);background:rgba(25,195,214,.14)}
+.pick{display:flex;gap:8px;margin-bottom:12px}
+.pick label{flex:1}
+.pick span{display:block;text-align:center;padding:12px 6px;background:var(--s2);border:2px solid transparent;border-radius:12px;font-weight:600}
+.pick input:checked+span{border-color:var(--acc);background:rgba(25,195,214,.14)}
+details{margin-bottom:12px} summary{color:var(--tx2);padding:6px 0;font-size:14px}
+.err{color:var(--bad);font-size:14px;min-height:18px;margin-bottom:6px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ===== Overlays ===== */
+.overlay{position:fixed;inset:0;z-index:100;background:#7a0b0d;color:#fff;display:flex;flex-direction:column;justify-content:center;
+  padding:28px;gap:14px}
+.overlay h1{font-size:30px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 70px);z-index:120;
+  background:var(--s2);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:14px;max-width:90%}
+.offline{background:var(--warn);color:#241a00;text-align:center;font-size:13px;font-weight:600;padding:5px 8px;
+  padding-top:calc(env(safe-area-inset-top) + 5px)}
+.logo{font-size:56px;margin-bottom:6px}
+.splash{min-height:80dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:24px}
+.splash h1{font-size:34px;letter-spacing:-.02em;color:var(--acc)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="sheet-root"></div>
+<div id="alert-root"></div>
+<div id="toast-root"></div>
+
+<!-- ============================================================
+     1) LÓGICA PURA (sem Firebase, sem DOM) — testável via rotaTests()
+     ============================================================ -->
+<script id="puro">
+'use strict';
+const TZ = 'America/Recife';
+const BLACKLIST_TELEFONES = [
+  { numero: '556131420712', motivo: 'Falso atendimento Booking.com encontrado no Google' },
+  { numero: '556135501608', motivo: 'Falso atendimento Booking.com encontrado no Google' },
+  { numero: '551151183723', motivo: 'Falso atendimento Booking.com encontrado no Google' },
+  { numero: '5531976011457', motivo: 'Falso atendimento Booking.com encontrado no Google' },
+  { numero: '551151900965', motivo: 'Falso atendimento Booking.com encontrado no Google' },
+  { numero: '551142807218', motivo: 'Falso atendimento Booking.com encontrado no Google' },
+];
+const CATEGORIAS = [
+  ['comida', '🍽️', 'Comida'], ['transfer', '🚕', 'Transfer'], ['passeio', '⛵', 'Passeio'],
+  ['mercado', '🛒', 'Mercado'], ['compras', '🛍️', 'Compras'], ['outro', '📦', 'Outro'],
+];
+
+/* ---- utilitários ---- */
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function brl(c) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((c || 0) / 100);
+}
+/** "12,50" | "1.234,5" | "12.50" | "12" -> centavos (inteiro). Inválido -> NaN */
+function parseMoney(str) {
+  let s = String(str ?? '').replace(/R\$|\s/g, '');
+  if (!s) return NaN;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return NaN;
+  const [i, d = ''] = s.split('.');
+  return parseInt(i, 10) * 100 + parseInt((d + '00').slice(0, 2), 10);
+}
+function centsToInput(c) {
+  if (c == null) return '';
+  return (c / 100).toFixed(2).replace('.', ',');
+}
+
+/* ---- datas ---- */
+let _hojeOverride = null;
+function setHojeOverride(s) { _hojeOverride = s || null; }
+/** "YYYY-MM-DD" de hoje no fuso America/Recife (sobrescrevível em modo debug) */
+function hoje() {
+  if (_hojeOverride) return _hojeOverride;
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+function agoraMs() {
+  // em modo debug, "agora" = meio-dia do dia simulado
+  return _hojeOverride ? Date.parse(_hojeOverride + 'T12:00:00-03:00') : Date.now();
+}
+function diasEntre(a, b) { // b - a, em dias, strings YYYY-MM-DD
+  return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+}
+function fmtDia(s) { // "2026-11-11" -> "11/11"
+  return s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
+}
+const SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+function fmtDiaLongo(s) {
+  const d = new Date(s + 'T12:00:00Z');
+  return SEMANA[d.getUTCDay()] + ', ' + fmtDia(s);
+}
+function fmtDataHora(ms) {
+  if (ms == null) return '';
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(ms)).replace(',', '');
+}
+function msToLocalInput(ms) { // para <input type=datetime-local>
+  if (ms == null) return '';
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    .formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+function localInputToMs(s) {
+  if (!s) return null;
+  const t = Date.parse(s + ':00-03:00');
+  return isNaN(t) ? null : t;
+}
+
+/* ---- cálculos do Painel (5.1 a 5.3) ---- */
+function diasViagem(v) { return diasEntre(v.dataInicio, v.dataFim) + 1; }
+
+function totais(reservas, gastos) {
+  const comprometido = reservas.filter((r) => r.status !== 'cancelada').reduce((s, r) => s + (r.valorCentavos || 0), 0);
+  const gasto = gastos.filter((g) => g.tipo === 'realizado').reduce((s, g) => s + (g.valorCentavos || 0), 0);
+  const previsto = gastos.filter((g) => g.tipo === 'previsto').reduce((s, g) => s + (g.valorCentavos || 0), 0);
+  return { comprometido, gasto, previsto };
+}
+
+function podeGastarHoje(v, reservas, gastos, hojeStr) {
+  const orc = v.orcamentoCentavos || 0;
+  const t = totais(reservas, gastos);
+  const livre = orc - t.comprometido - t.gasto;
+  const dias = diasViagem(v);
+  if (hojeStr < v.dataInicio) {
+    return { estado: 'antes', rotulo: 'Diária planejada', diaria: Math.round(livre / dias), livre, dias, ...t };
+  }
+  if (hojeStr > v.dataFim) {
+    return { estado: 'depois', livre, dias, ...t };
+  }
+  const gastosAntes = gastos.filter((g) => g.tipo === 'realizado' && g.data < hojeStr).reduce((s, g) => s + g.valorCentavos, 0);
+  const gastosHoje = gastos.filter((g) => g.tipo === 'realizado' && g.data === hojeStr).reduce((s, g) => s + g.valorCentavos, 0);
+  const base = orc - t.comprometido - gastosAntes;
+  const diasRestantes = diasEntre(hojeStr, v.dataFim) + 1;
+  const limiteHoje = Math.round(base / diasRestantes);
+  return {
+    estado: 'durante', base, diasRestantes, limiteHoje, gastosHoje, restante: limiteHoje - gastosHoje,
+    diaAtual: diasEntre(v.dataInicio, hojeStr) + 1, livre, dias, ...t,
+  };
+}
+
+/** Quanto cada pessoa pagou ('ambos' = pago pelos dois meio a meio: não altera o acerto) (reservas pagas + gastos realizados) e o acerto entre dois membros. */
+function pagoPorPessoa(reservas, gastos) {
+  const m = {};
+  for (const r of reservas) {
+    if (r.status !== 'cancelada' && r.statusPagamento === 'pago' && r.pagoPor) m[r.pagoPor] = (m[r.pagoPor] || 0) + (r.valorCentavos || 0);
+  }
+  for (const g of gastos) {
+    if (g.tipo === 'realizado' && g.pagoPor) m[g.pagoPor] = (m[g.pagoPor] || 0) + (g.valorCentavos || 0);
+  }
+  return m;
+}
+function acerto(reservas, gastos, emails) {
+  if (!emails || emails.length !== 2) return null;
+  const m = pagoPorPessoa(reservas, gastos);
+  const [a, b] = emails;
+  const pa = m[a] || 0, pb = m[b] || 0;
+  const diff = Math.round(Math.abs(pa - pb) / 2);
+  if (diff === 0) return { devedor: null, credor: null, valor: 0, pagos: m };
+  return pa > pb ? { devedor: b, credor: a, valor: diff, pagos: m } : { devedor: a, credor: b, valor: diff, pagos: m };
+}
+
+/* ---- prazos / alertas (5.4) ---- */
+function prazosProximos(reservas, agora, dias = 7) {
+  return reservas
+    .filter((r) => r.status !== 'cancelada' && r.prazoCritico && r.prazoCritico.quando != null)
+    .map((r) => ({ reserva: r, quando: r.prazoCritico.quando, descricao: r.prazoCritico.descricao, dias: Math.ceil((r.prazoCritico.quando - agora) / 86400000) }))
+    .filter((p) => p.quando >= agora && p.quando <= agora + dias * 86400000)
+    .sort((x, y) => x.quando - y.quando);
+}
+
+/* ---- código mascarado ---- */
+function mascarar(codigo) {
+  const c = String(codigo || '');
+  if (!c) return '—';
+  if (c.length <= 4) return '•'.repeat(c.length);
+  return c.slice(0, 2) + '•'.repeat(Math.min(c.length - 4, 8)) + c.slice(-2);
+}
+
+/* ---- telefones / antigolpe (5.5) ---- */
+function normalizarTelefone(t) {
+  let d = String(t || '').replace(/\D/g, '');
+  d = d.replace(/^0+/, '');
+  if (d.length === 10 || d.length === 11) d = '55' + d;
+  return d;
+}
+function checarBlacklist(tel, extra) {
+  const n = normalizarTelefone(tel);
+  if (!n) return null;
+  const lista = BLACKLIST_TELEFONES.concat((extra || []).map((e) => ({ numero: normalizarTelefone(e.numero), motivo: e.motivo || 'Número marcado como golpe' })));
+  return lista.find((b) => b.numero === n) || null;
+}
+
+/* ---- testes: rodar rotaTests() no console ---- */
+function rotaTests() {
+  const out = [];
+  const eq = (nome, got, want) => out.push({ nome, ok: JSON.stringify(got) === JSON.stringify(want), got: JSON.stringify(got), want: JSON.stringify(want) });
+  const V = { dataInicio: '2026-11-11', dataFim: '2026-11-16', orcamentoCentavos: 700000 };
+  const R = [
+    { status: 'confirmada', valorCentavos: 177000, statusPagamento: 'pago', pagoPor: 'a@x' },
+    { status: 'problema', valorCentavos: 196600, statusPagamento: 'nao_cobrado' },
+    { status: 'cancelada', valorCentavos: 999999, statusPagamento: 'pago', pagoPor: 'b@x' },
+  ];
+  const G = [
+    { tipo: 'realizado', valorCentavos: 10000, data: '2026-11-11', pagoPor: 'b@x' },
+    { tipo: 'realizado', valorCentavos: 20000, data: '2026-11-12', pagoPor: 'a@x' },
+    { tipo: 'realizado', valorCentavos: 5000, data: '2026-11-13', pagoPor: 'b@x' },
+    { tipo: 'previsto', valorCentavos: 40000, data: '2026-11-14', pagoPor: 'a@x' },
+  ];
+  eq('parseMoney 12,50', parseMoney('12,50'), 1250);
+  eq('parseMoney 1.234,5', parseMoney('1.234,5'), 123450);
+  eq('parseMoney R$ 7', parseMoney('R$ 7'), 700);
+  eq('parseMoney 12.5', parseMoney('12.5'), 1250);
+  eq('parseMoney 1.234', parseMoney('1.234'), 123400);
+  eq('parseMoney lixo', Number.isNaN(parseMoney('abc')), true);
+  eq('diasEntre', diasEntre('2026-11-11', '2026-11-16'), 5);
+  eq('diasViagem = 6', diasViagem(V), 6);
+  eq('totais', totais(R, G), { comprometido: 373600, gasto: 35000, previsto: 40000 });
+  const antes = podeGastarHoje(V, R, [], '2026-11-01');
+  eq('antes: estado', antes.estado, 'antes');
+  eq('antes: diária = (700000-373600)/6', antes.diaria, 54400);
+  const dur = podeGastarHoje(V, R, G, '2026-11-13');
+  eq('durante: estado', dur.estado, 'durante');
+  eq('durante: base', dur.base, 296400);
+  eq('durante: diasRestantes', dur.diasRestantes, 4);
+  eq('durante: limiteHoje', dur.limiteHoje, 74100);
+  eq('durante: restante', dur.restante, 69100);
+  eq('durante: dia 1 de 6 no primeiro dia', podeGastarHoje(V, R, [], '2026-11-11').diaAtual, 1);
+  eq('durante: último dia', podeGastarHoje(V, R, [], '2026-11-16').diasRestantes, 1);
+  eq('depois: estado', podeGastarHoje(V, R, G, '2026-11-17').estado, 'depois');
+  eq('estourou: restante negativo', podeGastarHoje(V, R, [{ tipo: 'realizado', valorCentavos: 900000, data: '2026-11-13' }], '2026-11-13').restante < 0, true);
+  const ac = acerto(R, G, ['a@x', 'b@x']);
+  // a pagou 177000+20000=197000; b pagou 10000+5000=15000 (reserva cancelada ignorada) -> b deve (182000/2)=91000
+  eq('acerto', [ac.devedor, ac.credor, ac.valor], ['b@x', 'a@x', 91000]);
+  eq('acerto ignora "ambos"', acerto(R, G.concat([{ tipo: 'realizado', valorCentavos: 50000, pagoPor: 'ambos', data: '2026-11-13' }]), ['a@x', 'b@x']).valor, 91000);
+  eq('acerto sem diferença', acerto([], [], ['a@x', 'b@x']).valor, 0);
+  eq('acerto 1 membro = null', acerto(R, G, ['a@x']), null);
+  eq('normaliza (81) 99999-1234', normalizarTelefone('(81) 99999-1234'), '5581999991234');
+  eq('normaliza +55 61 3142-0712', normalizarTelefone('+55 61 3142-0712'), '556131420712');
+  eq('blacklist bate', !!checarBlacklist('(61) 3142-0712'), true);
+  eq('blacklist bate c/ 55', !!checarBlacklist('+55 31 97601-1457'), true);
+  eq('blacklist não bate', checarBlacklist('(81) 99999-1234'), null);
+  eq('blacklist extra', !!checarBlacklist('81 99999-1234', [{ numero: '81999991234', motivo: 'x' }]), true);
+  eq('mascarar', mascarar('HMABCDEFZM'), 'HM••••••ZM');
+  eq('mascarar curto', mascarar('ABC'), '•••');
+  eq('mascarar vazio', mascarar(''), '—');
+  const agora = Date.parse('2026-11-07T12:00:00-03:00');
+  const pr = prazosProximos([
+    { status: 'confirmada', prazoCritico: { quando: Date.parse('2026-11-10T15:00:00-03:00'), descricao: 'x' } },
+    { status: 'confirmada', prazoCritico: { quando: Date.parse('2026-11-20T15:00:00-03:00'), descricao: 'longe' } },
+    { status: 'cancelada', prazoCritico: { quando: Date.parse('2026-11-08T15:00:00-03:00'), descricao: 'cancelada' } },
+  ], agora);
+  eq('prazos: só 1 nos próximos 7 dias', pr.length, 1);
+  eq('prazos: dias restantes', pr[0] && pr[0].dias, 4);
+  eq('datetime-local round trip', msToLocalInput(localInputToMs('2026-11-11T15:00')), '2026-11-11T15:00');
+  const falhas = out.filter((t) => !t.ok);
+  if (typeof console !== 'undefined') {
+    console.table(out.map((t) => ({ teste: t.nome, ok: t.ok ? '✅' : '❌', got: t.ok ? '' : t.got, want: t.ok ? '' : t.want })));
+    console.log(falhas.length ? `❌ ${falhas.length} teste(s) falharam` : `✅ ${out.length} testes passaram`);
+  }
+  return { total: out.length, falhas: falhas.length };
+}
+</script>
+
+<!-- ============================================================
+     2) APP: estado, Firebase, renderização, ações
+     ============================================================ -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut }
+  from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, deleteDoc,
+  onSnapshot, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+
+/* ---------- Config do Firebase (pública; quem protege é firestore.rules) ---------- */
+const firebaseConfig = {
+  apiKey: 'AIzaSyDyF_ZBdVuJu7EKNM4hX6pG1vYRZ27r84Q',
+  authDomain: 'rota-baruk.firebaseapp.com',
+  projectId: 'rota-baruk',
+  storageBucket: 'rota-baruk.firebasestorage.app',
+  messagingSenderId: '953746618613',
+  appId: '1:953746618613:web:fc6534579c238ffac1edbc',
+};
+const CONFIGURADO = !String(firebaseConfig.apiKey).startsWith('COLE_AQUI');
+
+/* ---------- Estado ---------- */
+const S = {
+  auth: 'loading', // loading | login | negado | ok | semconfig
+  user: null,
+  viagens: null,   // null = ainda não carregou
+  viagemId: null,
+  reservas: [], gastos: [], contatos: [], roteiro: [], checklist: [], diario: [],
+  tab: 'hoje', sub: null, dia: null,
+  fGasto: { tipo: 'realizado', cat: '', pessoa: '' },
+  revelados: {},
+  online: navigator.onLine,
+  erro: '',
+};
+let auth, db;
+let unsubViagens = null, unsubSub = [];
+const $ = (id) => document.getElementById(id);
+
+/* modo debug: ?hoje=2026-11-13 simula a data */
+try {
+  const q = new URLSearchParams(location.search).get('hoje');
+  if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) setHojeOverride(q);
+} catch (_) {}
+window.setHoje = (s) => { setHojeOverride(s); render(); };
+window.rotaTests = rotaTests;
+
+/* ---------- Helpers de estado ---------- */
+const viagem = () => (S.viagens || []).find((v) => v.id === S.viagemId) || null;
+const meuEmail = () => (S.user && S.user.email) || '';
+function nomeDe(email) {
+  if (email === 'ambos') return 'Os dois';
+  const v = viagem();
+  return (v && v.membrosNomes && v.membrosNomes[email]) || String(email || '').split('@')[0] || '?';
+}
+const membros = () => { const v = viagem(); return v ? v.membrosEmails || [] : []; };
+const tsMs = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : (typeof t === 'number' ? t : null));
+const FORMAS = [['debito', 'Débito'], ['credito', 'Crédito'], ['dinheiro', 'Dinheiro'], ['pix', 'Pix']];
+const formaNome = (k) => (FORMAS.find((f) => f[0] === k) || [k, k === 'cartao' ? 'Cartão' : k || ''])[1];
+const catInfo = (k) => CATEGORIAS.find((c) => c[0] === k) || CATEGORIAS[5];
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} };
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast'; el.textContent = msg;
+  $('toast-root').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+const fail = (e) => { console.error(e); toast('Erro: ' + (e && e.message ? e.message : e)); };
+
+/* ---------- Tema ---------- */
+function aplicarTema() {
+  const t = lsGet('rota-tema') || 'sistema';
+  const root = document.documentElement;
+  const escuro = t === 'escuro' || (t === 'sistema' && matchMedia('(prefers-color-scheme: dark)').matches);
+  root.removeAttribute('data-theme');
+  if (t === 'escuro') root.setAttribute('data-theme', 'dark');
+  else if (t === 'claro') root.setAttribute('data-theme', 'light'); // força claro mesmo com o sistema escuro
+  document.querySelector('meta[name=theme-color]').setAttribute('content', escuro ? '#08202F' : '#FFF6E5');
+}
+aplicarTema();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', aplicarTema);
+
+/* ---------- Firebase ---------- */
+function iniciarFirebase() {
+  const app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  onAuthStateChanged(auth, (u) => {
+    limparListeners();
+    S.viagens = null; S.viagemId = null; S.reservas = []; S.gastos = []; S.contatos = [];
+    if (!u) { S.user = null; S.auth = 'login'; return render(); }
+    S.user = u;
+    if (!u.emailVerified) { S.auth = 'negado'; return render(); }
+    S.auth = 'ok';
+    ouvirViagens();
+    render();
+  });
+}
+function limparListeners() {
+  if (unsubViagens) unsubViagens(); unsubViagens = null;
+  unsubSub.forEach((f) => f()); unsubSub = [];
+}
+function ouvirViagens() {
+  const q = query(collection(db, 'viagens'), where('membrosEmails', 'array-contains', meuEmail()));
+  unsubViagens = onSnapshot(q, (snap) => {
+    S.viagens = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (S.viagemId && !viagem()) { S.viagemId = null; unsubSub.forEach((f) => f()); unsubSub = []; }
+    if (S.pendingOpen && S.viagens.some((v) => v.id === S.pendingOpen)) { const id = S.pendingOpen; S.pendingOpen = null; abrirViagem(id); }
+    else if (!S.viagemId && S.viagens.length === 1) abrirViagem(S.viagens[0].id);
+    render();
+  }, (e) => {
+    console.error(e);
+    if (e.code === 'permission-denied') { S.auth = 'negado'; render(); } else { S.erro = e.message; render(); }
+  });
+}
+function abrirViagem(id) {
+  unsubSub.forEach((f) => f()); unsubSub = [];
+  S.viagemId = id; S.reservas = []; S.gastos = []; S.contatos = []; S.tab = 'hoje'; S.sub = null; S.dia = null; S.roteiro = []; S.checklist = []; S.diario = [];
+  lsSet('rota-viagem', id);
+  // Logo após criar a viagem, o servidor pode negar a leitura das subcoleções (a regra lê o doc da viagem,
+  // que ainda não chegou). Nesse caso o listener morre: reassina após uma pausa em vez de mostrar erro.
+  const sub = (nome, key) => {
+    let un = null, timer = null, morto = false, tent = 0;
+    const ligar = () => {
+      un = onSnapshot(collection(db, 'viagens', id, nome), (snap) => {
+        S[key] = snap.docs.map((d) => {
+          const x = { id: d.id, ...d.data() };
+          for (const k of ['inicio', 'fim', 'criadoEm']) if (k in x) x[k] = tsMs(x[k]);
+          if (x.prazoCritico) x.prazoCritico = { ...x.prazoCritico, quando: tsMs(x.prazoCritico.quando) };
+          return x;
+        });
+        render();
+      }, (e) => {
+        if (morto) return;
+        if (e.code === 'permission-denied' && tent < 6) { tent++; timer = setTimeout(ligar, 1500 * tent); } else fail(e);
+      });
+    };
+    ligar();
+    return () => { morto = true; clearTimeout(timer); if (un) un(); };
+  };
+  unsubSub = ['reservas', 'gastos', 'contatos', 'roteiro', 'checklist', 'diario'].map((n) => sub(n, n));
+  render();
+}
+const colRef = (nome) => collection(db, 'viagens', S.viagemId, nome);
+const dRef = (nome, id) => (id ? doc(db, 'viagens', S.viagemId, nome, id) : doc(colRef(nome)));
+
+async function entrar() {
+  const p = new GoogleAuthProvider();
+  try { await signInWithPopup(auth, p); }
+  catch (e) {
+    if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(e.code)) { try { await signInWithRedirect(auth, p); } catch (e2) { fail(e2); } }
+    else if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') fail(e);
+  }
+}
+const sair = () => signOut(auth).catch(fail);
+
+/* ============================================================
+   Renderização
+   ============================================================ */
+function render() {
+  const app = $('app');
+  let html = '';
+  if (S.auth === 'semconfig') html = telaSemConfig();
+  else if (S.auth === 'loading') html = '<div class="splash"><div class="logo">🧭</div><h1>Rota</h1></div>';
+  else if (S.auth === 'login') html = telaLogin();
+  else if (S.auth === 'negado') html = telaNegado();
+  else if (S.viagens === null) html = '<div class="splash"><div class="logo">🧭</div><p class="muted">Carregando…</p></div>';
+  else if (!viagem()) html = telaViagens();
+  else html = telaPrincipal();
+  app.innerHTML = (S.online ? '' : '<div class="offline">Sem conexão — o que você lançar sincroniza quando voltar</div>') + html;
+}
+
+function telaSemConfig() {
+  return `<div class="screen"><div class="card"><h3>Configuração pendente</h3>
+    <p>Cole o <code>firebaseConfig</code> do seu projeto Firebase no <code>index.html</code> (seção “Config do Firebase”). Veja o README.</p></div></div>`;
+}
+function telaLogin() {
+  return `<div class="splash"><div class="logo">🧭</div><h1>Rota</h1>
+    <p class="muted">Viagens do Vitor e da Thais</p>
+    <button class="btn pri" data-act="entrar">Entrar com Google</button>${S.erro ? `<p class="err">${esc(S.erro)}</p>` : ''}</div>`;
+}
+function telaNegado() {
+  return `<div class="splash"><div class="logo">🚫</div><h1 style="color:var(--bad)">Acesso não autorizado</h1>
+    <p class="muted">${esc(meuEmail())} não tem acesso ao Rota${S.user && !S.user.emailVerified ? ' (e-mail não verificado)' : ''}.</p>
+    <button class="btn" data-act="sair">Sair</button></div>`;
+}
+function ordenarViagens(vs) {
+  const h = hoje();
+  return [...vs].sort((a, b) => {
+    const fa = a.dataFim < h, fb = b.dataFim < h;
+    if (fa !== fb) return fa ? 1 : -1;
+    return fa ? b.dataInicio.localeCompare(a.dataInicio) : a.dataInicio.localeCompare(b.dataInicio);
+  });
+}
+function telaViagens() {
+  const vs = ordenarViagens(S.viagens);
+  return `<div class="screen"><div class="top"><h1>Suas viagens</h1><button class="btn sm" data-act="sair">Sair</button></div>
+    ${vs.length ? vs.map((v) => `<button class="item" data-act="abrirViagem" data-id="${esc(v.id)}"><span class="ico">🧭</span>
+       <span class="grow"><b>${esc(v.nome)}</b><br><span class="muted small">${esc(v.destino)} · ${fmtDia(v.dataInicio)} a ${fmtDia(v.dataFim)}</span></span></button>`).join('')
+      : `<div class="card center"><p class="muted">Você ainda não tem nenhuma viagem.</p>
+         <button class="btn pri block" data-act="seed">Criar viagem de exemplo: Porto de Galinhas 2026</button></div>`}
+    <button class="btn block ${vs.length ? '' : 'ghost'} mt" data-act="novaViagem">+ Nova viagem em branco</button></div>`;
+}
+
+function telaPrincipal() {
+  let corpo = '';
+  if (S.tab === 'hoje') corpo = abaHoje();
+  else if (S.tab === 'gastos') corpo = abaGastos();
+  else corpo = abaViagem();
+  const nav = [['hoje', '☀️', 'Hoje'], ['gastos', '💸', 'Gastos'], ['viagem', '🧭', 'Viagem']];
+  const fab = (S.tab === 'hoje' || S.tab === 'gastos') ? '<button class="fab" data-act="novoGasto">+ Gasto</button>' : '';
+  return `<div class="main">${corpo}</div>${fab}
+    <nav><div class="in">${nav.map(([k, i, l]) => `<button class="${S.tab === k ? 'on' : ''}" data-act="tab" data-tab="${k}"><span class="ic">${i}</span>${l}</button>`).join('')}</div></nav>`;
+}
+
+/* ---------- Hoje ---------- */
+const dataDe = (ms) => msToLocalInput(ms).slice(0, 10);
+const horaDe = (ms) => msToLocalInput(ms).slice(11, 16);
+const TIPO_BLOCO = { trabalho: '💻', praia: '🏖️', passeio: '⛵', refeicao: '🍽️', deslocamento: '🚕', outro: '📌' };
+function diaAtivo(v) {
+  const h = hoje();
+  const d = S.dia || h;
+  return d < v.dataInicio ? v.dataInicio : d > v.dataFim ? v.dataFim : d;
+}
+function alertasHtml() {
+  let html = '';
+  for (const p of prazosProximos(S.reservas, agoraMs())) {
+    const q = p.dias <= 0 ? 'hoje' : p.dias === 1 ? 'em 1 dia' : `em ${p.dias} dias`;
+    html += `<div class="alert coral"><b>⏰ Prazo ${q}</b>${esc(p.descricao || p.reserva.titulo)} — ${esc(p.reserva.titulo)} (${fmtDataHora(p.quando)})</div>`;
+  }
+  for (const r of S.reservas.filter((r) => r.status === 'problema' || r.status === 'pendente')) {
+    const bad = r.status === 'problema';
+    html += `<div class="alert ${bad ? 'bad' : 'warn'}" data-act="ir" data-tab="viagem" data-v="reservas"><b>${bad ? '⚠️ Problema' : '🕓 Pendente'}: ${esc(r.titulo)}</b>${r.notas ? esc(r.notas.slice(0, 100)) + (r.notas.length > 100 ? '…' : '') : ''}</div>`;
+  }
+  return html;
+}
+function eventosDoDia(dia) {
+  const ev = [];
+  for (const r of S.reservas.filter((r) => r.status !== 'cancelada')) {
+    const hosp = r.tipo === 'hospedagem';
+    if (r.inicio != null && dataDe(r.inicio) === dia) ev.push({ hora: horaDe(r.inicio), emoji: TIPO_RES[r.tipo] || '📌', titulo: (hosp ? 'Check-in — ' : '') + r.titulo, reserva: true });
+    if (r.fim != null && dataDe(r.fim) === dia && r.fim !== r.inicio) ev.push({ hora: horaDe(r.fim), emoji: TIPO_RES[r.tipo] || '📌', titulo: (hosp ? 'Check-out — ' : r.tipo === 'voo' ? 'Chegada/volta — ' : 'Fim — ') + r.titulo, reserva: true });
+  }
+  const doc = achar(S.roteiro, dia);
+  ((doc && doc.blocos) || []).forEach((b, i) => ev.push({ hora: b.hora, emoji: TIPO_BLOCO[b.tipo] || '📌', titulo: b.titulo, notas: b.notas, bloco: i }));
+  return ev.sort((a, b) => a.hora.localeCompare(b.hora));
+}
+function abaHoje() {
+  const v = viagem(), h = hoje(), dia = diaAtivo(v);
+  const pg = podeGastarHoje(v, S.reservas, S.gastos, h);
+  const n = diasEntre(v.dataInicio, dia) + 1;
+  let html = `<div class="top"><div><h1>${esc(v.nome)}</h1><small>${pg.estado === 'antes' ? (diasEntre(h, v.dataInicio) === 1 ? 'Falta 1 dia' : `Faltam ${diasEntre(h, v.dataInicio)} dias`) : pg.estado === 'depois' ? 'Viagem concluída' : esc(v.destino)}</small></div></div>
+    <div class="daynav"><button data-act="diaMov" data-v="-1" ${dia <= v.dataInicio ? 'disabled' : ''}>‹</button>
+      <button class="mid" data-act="diaHoje"><b>Dia ${n} de ${pg.dias}</b><br><span class="muted small">${fmtDiaLongo(dia)}${dia === h ? ' · hoje' : ''}</span></button>
+      <button data-act="diaMov" data-v="1" ${dia >= v.dataFim ? 'disabled' : ''}>›</button></div>`;
+  html += alertasHtml();
+
+  // número principal
+  const gDia = S.gastos.filter((g) => g.tipo === 'realizado' && g.data === dia);
+  const totDia = gDia.reduce((s, g) => s + g.valorCentavos, 0);
+  if (pg.estado === 'antes') {
+    html += `<div class="hero"><div class="lbl">Diária planejada</div><div class="big num ${pg.diaria >= 0 ? 'pos' : 'neg'}">${brl(pg.diaria)}</div>
+      <div class="muted small">${brl(pg.livre)} livres ÷ ${pg.dias} dias</div></div>`;
+  } else if (pg.estado === 'durante' && dia === h) {
+    html += `<div class="hero"><div class="lbl">Hoje ainda pode</div><div class="big num ${pg.restante >= 0 ? 'pos' : 'neg'}">${brl(pg.restante)}</div>
+      <div class="muted small">Limite ${brl(pg.limiteHoje)} · gasto hoje ${brl(pg.gastosHoje)}</div></div>`;
+  } else if (pg.estado === 'depois') html += resumoFinal(v, pg);
+
+  // plano do dia
+  const ev = eventosDoDia(dia), rot = achar(S.roteiro, dia) || {};
+  const mare = (l, arr) => (arr && arr.length ? `${l} ${arr.map((m) => m.hora + (m.alturaM != null ? ` (${m.alturaM}m)` : '')).join(' · ')}` : '');
+  const mares = [mare('🌊 Baixa', rot.mareBaixa), mare('Alta', rot.mareAlta)].filter(Boolean).join('  |  ');
+  html += `<div class="card"><div class="row between"><h3 style="margin:0">Plano do dia</h3><div><button class="btn sm" data-act="novoBloco" data-v="${dia}">+ Item</button></div></div>
+    ${mares ? `<div class="small mt">${esc(mares)}</div>` : ''}
+    ${ev.length ? ev.map((e) => `<button class="plan" ${e.bloco != null ? `data-act="editBloco" data-v="${dia}" data-i="${e.bloco}"` : 'data-act="ir" data-tab="viagem" data-v="reservas"'}>
+      <span class="hr num">${esc(e.hora)}</span><span class="grow"><span>${e.emoji}</span> ${esc(e.titulo)}${e.notas ? `<br><span class="muted small">${esc(e.notas)}</span>` : ''}</span></button>`).join('')
+      : '<div class="muted small mt">Nada planejado. Toque em “+ Item”.</div>'}
+    <div class="actions"><button class="btn sm ghost" data-act="mares" data-v="${dia}">🌊 Marés do dia</button></div></div>`;
+
+  // gastos do dia
+  html += `<div class="card"><div class="row between"><h3 style="margin:0">Gastos do dia</h3><b class="num">${brl(totDia)}</b></div>
+    ${gDia.length ? gDia.sort((a, b) => (b.criadoEm || 0) - (a.criadoEm || 0)).map((g) => `<button class="item mt" data-act="editGasto" data-id="${esc(g.id)}"><span class="ico">${catInfo(g.categoria)[1]}</span>
+      <span class="grow"><b>${esc(g.descricao || catInfo(g.categoria)[2])}</b><br><span class="muted small">${esc(nomeDe(g.pagoPor))}</span></span><span class="v">${brl(g.valorCentavos)}</span></button>`).join('')
+      : '<div class="muted small mt">Nenhum gasto neste dia.</div>'}</div>`;
+
+  // checklist (só pendentes)
+  const pend = S.checklist.filter((c) => !c.feito);
+  html += `<div class="card"><div class="row between"><h3 style="margin:0">Checklist · ${pend.length} ${pend.length === 1 ? 'falta' : 'faltam'}</h3>
+    <button class="btn sm" data-act="novoCheck">+ Item</button></div>
+    ${pend.slice(0, 5).map((c) => `<label class="check"><input type="checkbox" data-act="toggleCheck" data-id="${esc(c.id)}"><span>${esc(c.texto)}</span></label>`).join('')}
+    ${pend.length > 5 ? `<button class="btn sm ghost mt" data-act="ir" data-tab="viagem" data-v="checklist">Ver todos (${pend.length})</button>` : ''}
+    ${!S.checklist.length ? '<div class="muted small mt">Vazio. <button class="btn sm" data-act="checkSugestoes">Adicionar itens sugeridos</button></div>' : ''}</div>`;
+
+  // nota do dia
+  const dd = achar(S.diario, 'dia-' + dia);
+  html += `<div class="card"><div class="row between"><h3 style="margin:0">Como foi o dia?</h3><button class="btn sm" data-act="notaDia" data-v="${dia}">${dd ? 'Editar' : 'Escrever'}</button></div>
+    ${dd && dd.texto ? `<div class="mt" style="white-space:pre-wrap">${esc(dd.texto)}</div>` : '<div class="muted small mt">Uma frase já vale.</div>'}
+    ${dd && /^https?:\/\//.test(dd.linkAlbum || '') ? `<div class="mt"><a href="${esc(dd.linkAlbum)}" target="_blank" rel="noopener noreferrer">📷 Álbum de fotos</a></div>` : ''}</div>`;
+  return html;
+}
+function cardOrcamento() {
+  const v = viagem(), pg = podeGastarHoje(v, S.reservas, S.gastos, hoje()), orc = v.orcamentoCentavos || 0;
+  const total = Math.max(orc, pg.comprometido + pg.gasto) || 1;
+  const w = (x) => Math.max(0, (x / total) * 100).toFixed(2);
+  return `<div class="card"><h3>Orçamento ${brl(orc)}</h3>
+    <div class="bar"><i style="width:${w(pg.comprometido)}%;background:var(--acc)"></i><i style="width:${w(pg.gasto)}%;background:var(--coral)"></i><i style="width:${w(Math.max(pg.livre, 0))}%;background:var(--ok)"></i></div>
+    <div class="legend">
+      <div><span class="dot" style="background:var(--acc)"></span>Reservado<b class="num">${brl(pg.comprometido)}</b></div>
+      <div><span class="dot" style="background:var(--coral)"></span>Gasto<b class="num">${brl(pg.gasto)}</b></div>
+      <div><span class="dot" style="background:var(--ok)"></span>Livre<b class="num" style="color:${pg.livre < 0 ? 'var(--bad)' : 'inherit'}">${brl(pg.livre)}</b></div></div>
+    ${pg.previsto ? `<div class="muted small mt">Previsto (ainda não pago): ${brl(pg.previsto)}</div>` : ''}</div>`;
+}
+function resumoFinal(v, pg) {
+  const orc = v.orcamentoCentavos || 0, total = pg.comprometido + pg.gasto, dif = orc - total;
+  const porCat = {};
+  S.gastos.filter((g) => g.tipo === 'realizado').forEach((g) => { porCat[g.categoria] = (porCat[g.categoria] || 0) + g.valorCentavos; });
+  return `<div class="hero"><div class="lbl">Resumo final</div><div class="big num">${brl(total)}</div>
+    <div class="small"><b>${dif >= 0 ? `${brl(dif)} abaixo do orçamento` : `${brl(-dif)} acima do orçamento`}</b></div>
+    <div class="muted small mt">Reservas ${brl(pg.comprometido)} · gastos no destino ${brl(pg.gasto)}</div>
+    <div class="mt">${Object.entries(porCat).sort((a, b) => b[1] - a[1]).map(([k, c]) => `<div class="small row between"><span>${catInfo(k)[1]} ${catInfo(k)[2]}</span><b class="num">${brl(c)}</b></div>`).join('')}</div></div>`;
+}
+
+/* ---------- Gastos ---------- */
+function abaGastos() {
+  const f = S.fGasto;
+  let lista = S.gastos.filter((g) => g.tipo === f.tipo && (!f.cat || g.categoria === f.cat) && (!f.pessoa || g.pagoPor === f.pessoa));
+  lista.sort((a, b) => b.data.localeCompare(a.data) || (b.criadoEm || 0) - (a.criadoEm || 0));
+  const porDia = {};
+  lista.forEach((g) => (porDia[g.data] = porDia[g.data] || []).push(g));
+  const totalCat = {};
+  lista.forEach((g) => { totalCat[g.categoria] = (totalCat[g.categoria] || 0) + g.valorCentavos; });
+  const maxCat = Math.max(1, ...Object.values(totalCat));
+
+  let html = `<div class="top"><h1>Gastos</h1></div>
+    <div class="seg"><button class="${f.tipo === 'realizado' ? 'on' : ''}" data-act="fTipo" data-v="realizado">Realizados</button>
+      <button class="${f.tipo === 'previsto' ? 'on' : ''}" data-act="fTipo" data-v="previsto">Previstos</button></div>
+    <div class="chips"><button class="chip ${!f.cat ? 'on' : ''}" data-act="fCat" data-v="">Todas</button>
+      ${CATEGORIAS.map(([k, i, l]) => `<button class="chip ${f.cat === k ? 'on' : ''}" data-act="fCat" data-v="${k}">${i} ${l}</button>`).join('')}</div>
+    <div class="chips"><button class="chip ${!f.pessoa ? 'on' : ''}" data-act="fPessoa" data-v="">Todos</button>
+      ${membros().concat(membros().length > 1 ? ['ambos'] : []).map((e) => `<button class="chip ${f.pessoa === e ? 'on' : ''}" data-act="fPessoa" data-v="${esc(e)}">${esc(nomeDe(e))}</button>`).join('')}</div>`;
+
+  html = html.replace('<div class="seg">', cardOrcamento() + '<div class="seg">');
+  if (Object.keys(totalCat).length) {
+    html += `<div class="card"><h3>Por categoria</h3>${Object.entries(totalCat).sort((a, b) => b[1] - a[1]).map(([k, c]) =>
+      `<div class="mt"><div class="row between small"><span>${catInfo(k)[1]} ${catInfo(k)[2]}</span><b class="num">${brl(c)}</b></div><div class="hbar"><i style="width:${(c / maxCat * 100).toFixed(1)}%"></i></div></div>`).join('')}</div>`;
+  }
+
+  if (!lista.length) html += `<div class="card center muted">Nenhum gasto ${f.tipo === 'previsto' ? 'previsto ' : ''}por aqui ainda.</div>`;
+  for (const dia of Object.keys(porDia).sort().reverse()) {
+    const tot = porDia[dia].reduce((s, g) => s + g.valorCentavos, 0);
+    html += `<div class="day"><span>${fmtDiaLongo(dia)}</span><span class="num">${brl(tot)}</span></div>`;
+    html += porDia[dia].map((g) => `<button class="item ${g.tipo === 'previsto' ? 'prev' : ''}" data-act="editGasto" data-id="${esc(g.id)}">
+      <span class="ico">${catInfo(g.categoria)[1]}</span>
+      <span class="grow"><b>${esc(g.descricao || catInfo(g.categoria)[2])}</b><br><span class="muted small">${esc(nomeDe(g.pagoPor))} · ${esc(formaNome(g.forma))}</span></span>
+      <span class="v">${brl(g.valorCentavos)}</span></button>`).join('');
+  }
+  return html;
+}
+
+function formGasto(g) {
+  const novo = !g;
+  g = g || { pagoPor: meuEmail(), tipo: 'realizado', forma: 'pix', data: hoje() };
+  return `<form data-form="gasto" data-id="${esc(g.id || '')}" autocomplete="off">
+    <h2>${novo ? 'Novo gasto' : 'Editar gasto'}</h2>
+    <input class="big" name="valor" inputmode="decimal" placeholder="0,00" value="${novo ? '' : centsToInput(g.valorCentavos)}" id="f-valor">
+    <div class="cats">${CATEGORIAS.map(([k, i, l]) => `<label><input type="radio" name="categoria" value="${k}" ${g.categoria === k ? 'checked' : ''}><span><em>${i}</em>${l}</span></label>`).join('')}</div>
+    <div class="pick">${membros().concat(membros().length > 1 ? ['ambos'] : []).map((e) => `<label><input type="radio" name="pagoPor" value="${esc(e)}" ${g.pagoPor === e ? 'checked' : ''}><span>${esc(nomeDe(e))}</span></label>`).join('')}</div>
+    <details ${novo ? '' : 'open'}><summary>Forma, descrição, data…</summary>
+      <label class="f">Descrição<input name="descricao" value="${esc(g.descricao || '')}" placeholder="opcional"></label>
+      <div class="grid2"><label class="f">Forma<select name="forma">${FORMAS.concat(g.forma === 'cartao' ? [['cartao', 'Cartão']] : []).map(([k, l]) => `<option value="${k}" ${g.forma === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="f">Data<input type="date" name="data" value="${esc(g.data)}"></label></div>
+      <label class="f">Tipo<select name="tipo"><option value="realizado" ${g.tipo === 'realizado' ? 'selected' : ''}>Realizado</option><option value="previsto" ${g.tipo === 'previsto' ? 'selected' : ''}>Previsto</option></select></label>
+    </details>
+    <div class="err" id="f-err"></div>
+    <button class="btn pri block" type="submit">Salvar</button>
+    ${novo ? '' : '<button class="btn bad block mt" type="button" data-act="delGasto" data-id="' + esc(g.id) + '">Excluir</button>'}
+  </form>`;
+}
+function salvarGasto(fd, id) {
+  const valor = parseMoney(fd.get('valor'));
+  if (!(valor > 0)) return 'Informe um valor maior que zero.';
+  if (!fd.get('categoria')) return 'Escolha uma categoria.';
+  const pagoPor = fd.get('pagoPor') || meuEmail();
+  const dados = {
+    valorCentavos: valor, categoria: fd.get('categoria'), descricao: String(fd.get('descricao') || '').trim(),
+    pagoPor, forma: fd.get('forma') || 'pix', tipo: fd.get('tipo') || 'realizado', data: fd.get('data') || hoje(),
+  };
+  const ref = dRef('gastos', id);
+  if (!id) { dados.criadoPor = meuEmail(); dados.criadoEm = serverTimestamp(); }
+  setDoc(ref, dados, { merge: true }).catch(fail); // sem await: offline a promessa só resolve ao sincronizar
+  const v = viagem(), fora = v && (dados.data < v.dataInicio || dados.data > v.dataFim);
+  toast(`Gasto salvo: ${brl(valor)} em ${fmtDia(dados.data)}${fora ? ' (fora dos dias da viagem — veja na aba Gastos)' : ''}`);
+  return null;
+}
+
+/* ---------- Reservas ---------- */
+const TIPO_RES = { voo: '✈️', hospedagem: '🏠', transfer: '🚕', passeio: '⛵', outro: '📌' };
+const STATUS_RES = { confirmada: ['Confirmada', 'b-ok'], pendente: ['Pendente', 'b-warn'], problema: ['Problema', 'b-bad'], cancelada: ['Cancelada', 'b-muted'] };
+const PAG_RES = { pago: ['Pago', 'b-ok'], a_pagar: ['A pagar', 'b-warn'], nao_cobrado: ['Não cobrado', 'b-muted'] };
+
+function abaReservas() {
+  const lista = [...S.reservas].sort((a, b) => (a.inicio ?? Infinity) - (b.inicio ?? Infinity) || (a.ordem || 0) - (b.ordem || 0));
+  let html = `<div class="top"><h1>Reservas</h1><button class="btn sm pri" data-act="novaReserva">+ Reserva</button></div>`;
+  if (!lista.length) html += '<div class="card center muted">Nenhuma reserva ainda.</div>';
+  html += lista.map((r) => {
+    const st = STATUS_RES[r.status] || STATUS_RES.pendente, pg = PAG_RES[r.statusPagamento] || PAG_RES.nao_cobrado;
+    const rev = S.revelados[r.id] && S.revelados[r.id] > Date.now();
+    return `<div class="card res s-${esc(r.status)}">
+      <div class="row between"><b>${TIPO_RES[r.tipo] || '📌'} ${esc(r.titulo)}</b><button class="btn sm ghost" data-act="editReserva" data-id="${esc(r.id)}">Editar</button></div>
+      <div class="muted small">${esc(r.fornecedor)}</div>
+      <div class="mt"><span class="badge ${st[1]}">${st[0]}</span> <span class="badge ${pg[1]}">${pg[0]}</span></div>
+      <div class="kv"><span>Quando:</span> ${r.inicio ? fmtDataHora(r.inicio) : '—'}${r.fim ? ' → ' + fmtDataHora(r.fim) : ''}</div>
+      <div class="kv"><span>Valor:</span> <b class="num">${brl(r.valorCentavos)}</b>${r.pagoPor ? ` <span>· pago por</span> ${esc(nomeDe(r.pagoPor))}` : ''}</div>
+      ${r.detalhes ? `<div class="kv">${esc(r.detalhes)}</div>` : ''}
+      ${r.prazoCritico && r.prazoCritico.quando ? `<div class="infobox">⏰ ${esc(r.prazoCritico.descricao)} — ${fmtDataHora(r.prazoCritico.quando)}</div>` : ''}
+      ${r.notas ? `<div class="warnbox">${esc(r.notas)}</div>` : ''}
+      ${r.codigo ? `<div class="kv"><span>Código (segure para revelar):</span></div>
+        <div class="row"><div class="code" data-reveal="${esc(r.id)}">${rev ? esc(r.codigo) : mascarar(r.codigo)}</div>
+        <button class="btn sm" data-act="copiar" data-id="${esc(r.id)}">Copiar</button></div>` : ''}
+      <div class="actions">
+        ${/^https?:\/\//.test(r.linkOficial || '') ? `<a class="btn sm" href="${esc(r.linkOficial)}" target="_blank" rel="noopener noreferrer">Abrir link oficial</a>` : ''}
+        ${r.canalAtendimento ? `<button class="btn sm" data-act="canal" data-id="${esc(r.id)}">Atendimento</button>` : ''}
+      </div></div>`;
+  }).join('');
+  return html;
+}
+function formReserva(r) {
+  const novo = !r;
+  r = r || { tipo: 'hospedagem', status: 'confirmada', statusPagamento: 'nao_cobrado', pagoPor: '' };
+  const sel = (name, pares, cur) => `<select name="${name}">${pares.map(([k, l]) => `<option value="${esc(k)}" ${cur === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  const pq = r.prazoCritico || {};
+  return `<form data-form="reserva" data-id="${esc(r.id || '')}" autocomplete="off">
+    <h2>${novo ? 'Nova reserva' : 'Editar reserva'}</h2>
+    <div class="grid2"><label class="f">Tipo${sel('tipo', Object.keys(TIPO_RES).map((k) => [k, k]), r.tipo)}</label>
+      <label class="f">Status${sel('status', Object.entries(STATUS_RES).map(([k, v]) => [k, v[0]]), r.status)}</label></div>
+    <label class="f">Título<input name="titulo" value="${esc(r.titulo || '')}" required></label>
+    <label class="f">Fornecedor<input name="fornecedor" value="${esc(r.fornecedor || '')}"></label>
+    <div class="grid2"><label class="f">Valor (R$)<input name="valor" inputmode="decimal" value="${centsToInput(r.valorCentavos)}"></label>
+      <label class="f">Pagamento${sel('statusPagamento', Object.entries(PAG_RES).map(([k, v]) => [k, v[0]]), r.statusPagamento)}</label></div>
+    <label class="f">Pago por${sel('pagoPor', [['', '—']].concat(membros().concat(membros().length > 1 ? ['ambos'] : []).map((e) => [e, nomeDe(e)])), r.pagoPor || '')}</label>
+    <div class="grid2"><label class="f">Início<input type="datetime-local" name="inicio" value="${msToLocalInput(r.inicio)}"></label>
+      <label class="f">Fim<input type="datetime-local" name="fim" value="${msToLocalInput(r.fim)}"></label></div>
+    <label class="f">Detalhes<textarea name="detalhes">${esc(r.detalhes || '')}</textarea></label>
+    <div class="grid2"><label class="f">Prazo crítico<input type="datetime-local" name="prazoQuando" value="${msToLocalInput(pq.quando)}"></label>
+      <label class="f">Descrição do prazo<input name="prazoDesc" value="${esc(pq.descricao || '')}"></label></div>
+    <label class="f">Link oficial<input name="linkOficial" type="url" value="${esc(r.linkOficial || '')}"></label>
+    <label class="f">Canal de atendimento<textarea name="canalAtendimento">${esc(r.canalAtendimento || '')}</textarea></label>
+    <label class="f">Código da reserva (sensível — só fica no banco)<input name="codigo" value="${esc(r.codigo || '')}" autocapitalize="characters"></label>
+    <label class="f">Notas<textarea name="notas">${esc(r.notas || '')}</textarea></label>
+    <div class="err" id="f-err"></div>
+    <button class="btn pri block" type="submit">Salvar</button>
+    ${novo ? '' : '<button class="btn bad block mt" type="button" data-act="delReserva" data-id="' + esc(r.id) + '">Excluir</button>'}
+  </form>`;
+}
+function salvarReserva(fd, id) {
+  const titulo = String(fd.get('titulo') || '').trim();
+  if (!titulo) return 'Informe o título.';
+  const raw = String(fd.get('valor') || '').trim();
+  const valor = raw ? parseMoney(raw) : 0;
+  if (Number.isNaN(valor)) return 'Valor inválido.';
+  const pq = localInputToMs(fd.get('prazoQuando'));
+  const dados = {
+    tipo: fd.get('tipo'), titulo, fornecedor: String(fd.get('fornecedor') || '').trim(), status: fd.get('status'),
+    valorCentavos: valor, statusPagamento: fd.get('statusPagamento'), pagoPor: fd.get('pagoPor') || null,
+    inicio: toTs(localInputToMs(fd.get('inicio'))), fim: toTs(localInputToMs(fd.get('fim'))),
+    detalhes: String(fd.get('detalhes') || '').trim(),
+    prazoCritico: pq != null ? { quando: toTs(pq), descricao: String(fd.get('prazoDesc') || '').trim() } : null,
+    linkOficial: String(fd.get('linkOficial') || '').trim(), canalAtendimento: String(fd.get('canalAtendimento') || '').trim(),
+    codigo: String(fd.get('codigo') || '').trim(), notas: String(fd.get('notas') || '').trim(),
+  };
+  if (!id) dados.ordem = S.reservas.length + 1;
+  setDoc(dRef('reservas', id), dados, { merge: true }).catch(fail);
+  return null;
+}
+// Timestamp do Firestore sem importar a classe: o SDK aceita Date
+const toTs = (ms) => (ms == null ? null : new Date(ms));
+
+/* ---------- Contatos ---------- */
+const TIPO_CONT = { hospedagem: 'Hospedagem', transfer: 'Transfer', jangada: 'Jangada', buggy: 'Buggy', restaurante: 'Restaurante', atendimento: 'Atendimento', outro: 'Outro' };
+const SELO = { verificado: ['Verificado', 'b-ok'], nao_verificado: ['Não verificado', 'b-warn'], suspeito: ['Suspeito', 'b-bad'] };
+const selos = (c) => (checarBlacklist(c.telefone, viagem().blacklistExtra) ? 'suspeito' : c.selo);
+
+function abaContatos() {
+  const lista = S.contatos.map((c) => ({ ...c, _selo: selos(c) }));
+  let html = `<div class="top"><h1>Contatos</h1><button class="btn sm pri" data-act="novoContato">+ Contato</button></div>`;
+  if (!lista.length) html += '<div class="card center muted">Nenhum contato ainda.</div>';
+  const grupos = {};
+  lista.forEach((c) => (grupos[c.tipo] = grupos[c.tipo] || []).push(c));
+  for (const tipo of Object.keys(grupos).sort()) {
+    const g = grupos[tipo].sort((a, b) => (a._selo === 'suspeito') - (b._selo === 'suspeito') || a.nome.localeCompare(b.nome));
+    html += `<div class="day"><span>${TIPO_CONT[tipo] || tipo}</span></div>`;
+    html += g.map((c) => {
+      const s = SELO[c._selo] || SELO.nao_verificado;
+      const tel = normalizarTelefone(c.telefone);
+      return `<div class="card contact ${c._selo === 'suspeito' ? 'susp' : ''}">
+        <div class="row between"><b>${esc(c.nome)}</b><span class="badge ${s[1]}">${s[0]}</span></div>
+        ${c.telefone ? `<div class="kv num">${esc(c.telefone)}</div>` : '<div class="kv muted">Sem telefone cadastrado</div>'}
+        ${c.fonte ? `<div class="kv"><span>Fonte:</span> ${esc(c.fonte)}</div>` : ''}
+        ${c.precoCombinadoCentavos != null ? `<div class="kv"><span>Preço combinado:</span> <b>${brl(c.precoCombinadoCentavos)}</b></div>` : ''}
+        ${c.alerta ? `<div class="warnbox">⚠️ ${esc(c.alerta)}</div>` : ''}
+        ${c._selo === 'nao_verificado' ? '<div class="infobox">Confirme por fonte oficial antes de pagar qualquer coisa.</div>' : ''}
+        ${c.notas ? `<div class="kv muted">${esc(c.notas)}</div>` : ''}
+        <div class="actions">
+          ${tel ? `<button class="btn sm" data-act="ligar" data-id="${esc(c.id)}">📞 Ligar</button>
+          <a class="btn sm" href="https://wa.me/${tel}" target="_blank" rel="noopener noreferrer" ${c._selo === 'suspeito' ? 'data-act="zapSusp"' : ''}>💬 WhatsApp</a>
+          <button class="btn sm" data-act="copiarTel" data-id="${esc(c.id)}">Copiar</button>` : ''}
+          <button class="btn sm ghost" data-act="editContato" data-id="${esc(c.id)}">Editar</button></div></div>`;
+    }).join('');
+  }
+  return html;
+}
+function formContato(c) {
+  const novo = !c;
+  c = c || { tipo: 'outro', selo: 'nao_verificado' };
+  const sel = (name, pares, cur) => `<select name="${name}">${pares.map(([k, l]) => `<option value="${esc(k)}" ${cur === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  return `<form data-form="contato" data-id="${esc(c.id || '')}" autocomplete="off">
+    <h2>${novo ? 'Novo contato' : 'Editar contato'}</h2>
+    <label class="f">Nome<input name="nome" value="${esc(c.nome || '')}" required></label>
+    <div class="grid2"><label class="f">Tipo${sel('tipo', Object.entries(TIPO_CONT), c.tipo)}</label>
+      <label class="f">Selo${sel('selo', Object.entries(SELO).map(([k, v]) => [k, v[0]]), c.selo)}</label></div>
+    <label class="f">Telefone<input name="telefone" type="tel" value="${esc(c.telefone || '')}"></label>
+    <label class="f">Fonte (de onde veio o contato)<input name="fonte" value="${esc(c.fonte || '')}"></label>
+    <label class="f">Preço combinado (R$)<input name="preco" inputmode="decimal" value="${centsToInput(c.precoCombinadoCentavos)}"></label>
+    <label class="f">Alerta<textarea name="alerta">${esc(c.alerta || '')}</textarea></label>
+    <label class="f">Notas<textarea name="notas">${esc(c.notas || '')}</textarea></label>
+    <div class="err" id="f-err"></div>
+    <button class="btn pri block" type="submit">Salvar</button>
+    ${novo ? '' : '<button class="btn bad block mt" type="button" data-act="delContato" data-id="' + esc(c.id) + '">Excluir</button>'}
+  </form>`;
+}
+function salvarContato(fd, id, forcar) {
+  const nome = String(fd.get('nome') || '').trim();
+  if (!nome) return 'Informe o nome.';
+  const telefone = String(fd.get('telefone') || '').trim();
+  const rawPreco = String(fd.get('preco') || '').trim();
+  const preco = rawPreco ? parseMoney(rawPreco) : null;
+  if (Number.isNaN(preco)) return 'Preço inválido.';
+  let selo = fd.get('selo');
+  const bl = checarBlacklist(telefone, viagem().blacklistExtra);
+  if (bl) {
+    selo = 'suspeito';
+    if (!forcar) { alertaGolpe(bl, () => { const e = salvarContato(fd, id, true); if (!e) closeSheet(); }); return 'pendente'; }
+  }
+  const dados = {
+    nome, tipo: fd.get('tipo'), telefone, telefoneNormalizado: normalizarTelefone(telefone), fonte: String(fd.get('fonte') || '').trim(),
+    selo, precoCombinadoCentavos: preco, alerta: String(fd.get('alerta') || '').trim(), notas: String(fd.get('notas') || '').trim(),
+  };
+  setDoc(dRef('contatos', id), dados, { merge: true }).catch(fail);
+  return null;
+}
+function alertaGolpe(bl, onSalvar) {
+  const root = $('alert-root');
+  root.innerHTML = `<div class="overlay"><h1>🚨 Número de golpe</h1>
+    <p style="font-size:19px">${esc(bl.motivo)}</p><p class="num" style="font-size:22px"><b>+${esc(bl.numero)}</b></p>
+    <p>Não ligue, não mande mensagem e não pague nada. Use só o canal oficial dentro do app/site da empresa.</p>
+    <button class="btn block" style="background:#fff;color:#7a0b0d" data-act="alertaCancelar">Cancelar</button>
+    <button class="btn block ghost" style="border-color:#fff;color:#fff" data-act="alertaSalvar">Salvar mesmo assim (como suspeito)</button></div>`;
+  window.__alertaSalvar = () => { root.innerHTML = ''; onSalvar(); };
+}
+
+/* ---------- Mais / Configurações ---------- */
+const voltar = '<div style="margin-bottom:10px"><button class="btn sm" data-act="sub" data-v="">‹ Viagem</button></div>';
+function abaViagem() {
+  if (S.sub === 'config') return voltar + abaConfig();
+  if (S.sub === 'reservas') return voltar + abaReservas();
+  if (S.sub === 'contatos') return voltar + abaContatos();
+  if (S.sub === 'checklist') return voltar + abaChecklist();
+  if (S.sub === 'diario') return voltar + abaDiario();
+  const pend = S.checklist.filter((c) => !c.feito).length;
+  const itens = [['reservas', '🎫', 'Reservas', `${S.reservas.length}`], ['contatos', '📞', 'Contatos', `${S.contatos.length}`],
+    ['checklist', '✅', 'Checklist', pend ? `${pend} faltam` : ''], ['diario', '📓', 'Diário', `${S.diario.length}`], ['config', '⚙️', 'Configurações', '']];
+  return `<div class="top"><h1>Viagem</h1></div><div class="menu">
+    ${itens.map(([k, i, l, c]) => `<button class="item" data-act="sub" data-v="${k}"><span class="ico">${i}</span>${l}<span class="chev">${c} ›</span></button>`).join('')}</div>`;
+}
+function abaChecklist() {
+  const grupos = { mala: 'Mala', antes_de_sair: 'Antes de sair', documentos: 'Documentos', outro: 'Outros' };
+  let html = `<div class="top"><h1>Checklist</h1><button class="btn sm pri" data-act="novoCheck">+ Item</button></div>`;
+  if (!S.checklist.length) html += '<div class="card center"><button class="btn pri" data-act="checkSugestoes">Adicionar itens sugeridos</button></div>';
+  for (const [k, nome] of Object.entries(grupos)) {
+    const l = S.checklist.filter((c) => (c.grupo || 'outro') === k).sort((a, b) => a.feito - b.feito);
+    if (!l.length) continue;
+    html += `<div class="day"><span>${nome}</span><span>${l.filter((c) => c.feito).length}/${l.length}</span></div><div class="card" style="padding:4px 14px">${l.map((c) =>
+      `<div class="row"><label class="check grow"><input type="checkbox" data-act="toggleCheck" data-id="${esc(c.id)}" ${c.feito ? 'checked' : ''}><span style="${c.feito ? 'text-decoration:line-through;opacity:.55' : ''}">${esc(c.texto)}</span></label>
+      <button class="btn sm ghost" data-act="delCheck" data-id="${esc(c.id)}">✕</button></div>`).join('')}</div>`;
+  }
+  return html;
+}
+function abaDiario() {
+  const l = [...S.diario].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+  let html = `<div class="top"><h1>Diário</h1>${l.length ? '<button class="btn sm" data-act="copiarDiario">Copiar texto</button>' : ''}</div>`;
+  if (!l.length) html += '<div class="card center muted">Nada escrito ainda. Use “Como foi o dia?” na aba Hoje.</div>';
+  html += l.map((d) => `<div class="card"><div class="muted small">${d.data ? fmtDiaLongo(d.data) : ''} · ${esc(nomeDe(d.criadoPor))}</div>
+    <div class="mt" style="white-space:pre-wrap">${esc(d.texto)}</div>
+    ${/^https?:\/\//.test(d.linkAlbum || '') ? `<div class="mt"><a href="${esc(d.linkAlbum)}" target="_blank" rel="noopener noreferrer">📷 Álbum de fotos</a></div>` : ''}
+    <div class="actions"><button class="btn sm ghost" data-act="notaDia" data-v="${esc(d.data)}">Editar</button></div></div>`).join('');
+  return html;
+}
+function diarioMd() {
+  return `# ${viagem().nome}\n\n` + [...S.diario].sort((a, b) => (a.data || '').localeCompare(b.data || ''))
+    .map((d) => `## ${d.data ? fmtDiaLongo(d.data) : ''}\n\n${d.texto || ''}${d.linkAlbum ? `\n\nÁlbum: ${d.linkAlbum}` : ''}`).join('\n\n');
+}
+function abaConfig() {
+  const v = viagem(), tema = lsGet('rota-tema') || 'sistema';
+  return `<div class="top"><h1>Configurações</h1></div>
+    <div class="card"><h3>Viagem</h3><div><b>${esc(v.nome)}</b></div><div class="muted small">${esc(v.destino)} · ${fmtDia(v.dataInicio)} a ${fmtDia(v.dataFim)} · orçamento ${brl(v.orcamentoCentavos)}</div>
+      <div class="actions"><button class="btn sm" data-act="editViagem">Editar dados</button><button class="btn sm" data-act="novaViagem">Criar nova viagem</button>
+      ${S.viagens.length > 1 ? '<button class="btn sm" data-act="trocarViagem">Trocar viagem</button>' : ''}</div></div>
+    <div class="card"><h3>Membros</h3>${(v.membrosEmails || []).map((e) => `<div class="row between kv"><span>${esc(nomeDe(e))} <span class="muted small">${esc(e)}</span></span><span><button class="btn sm ghost" data-act="renMembro" data-v="${esc(e)}">Renomear</button>${e !== meuEmail() ? ` <button class="btn sm ghost" data-act="rmMembro" data-v="${esc(e)}">Remover</button>` : ''}</span></div>`).join('')}
+      <div class="actions"><button class="btn sm" data-act="addMembro">+ Adicionar membro</button></div></div>
+    <div class="card"><h3>Lista negra de telefones</h3><div class="muted small">Além dos ${BLACKLIST_TELEFONES.length} números de golpe já embutidos.</div>
+      ${(v.blacklistExtra || []).map((b, i) => `<div class="row between kv"><span class="num">+${esc(b.numero)} <span class="muted small">${esc(b.motivo)}</span></span><button class="btn sm ghost" data-act="rmBlack" data-v="${i}">✕</button></div>`).join('')}
+      <div class="actions"><button class="btn sm" data-act="addBlack">+ Adicionar número</button></div></div>
+    <div class="card"><h3>Tema</h3><div class="seg" style="margin:0">${[['sistema', 'Sistema'], ['claro', 'Claro'], ['escuro', 'Escuro']].map(([k, l]) => `<button class="${tema === k ? 'on' : ''}" data-act="tema" data-v="${k}">${l}</button>`).join('')}</div></div>
+    <div class="card"><div class="muted small">${esc(meuEmail())}</div><button class="btn block mt" data-act="sair">Sair</button></div>`;
+}
+function formViagem(v) {
+  const novo = !v;
+  v = v || { nome: '', destino: '', dataInicio: '', dataFim: '', orcamentoCentavos: null };
+  return `<form data-form="viagem" data-id="${esc(v.id || '')}" autocomplete="off"><h2>${novo ? 'Nova viagem' : 'Editar viagem'}</h2>
+    <label class="f">Nome<input name="nome" value="${esc(v.nome)}" required></label>
+    <label class="f">Destino<input name="destino" value="${esc(v.destino)}"></label>
+    <div class="grid2"><label class="f">Início<input type="date" name="dataInicio" value="${esc(v.dataInicio)}" required></label>
+      <label class="f">Fim<input type="date" name="dataFim" value="${esc(v.dataFim)}" required></label></div>
+    <label class="f">Orçamento (R$)<input name="orcamento" inputmode="decimal" value="${centsToInput(v.orcamentoCentavos)}"></label>
+    <div class="err" id="f-err"></div><button class="btn pri block" type="submit">Salvar</button></form>`;
+}
+function salvarViagem(fd, id) {
+  const nome = String(fd.get('nome') || '').trim(), ini = fd.get('dataInicio'), fim = fd.get('dataFim');
+  if (!nome || !ini || !fim) return 'Preencha nome e datas.';
+  if (fim < ini) return 'A data final é anterior à inicial.';
+  const orc = parseMoney(fd.get('orcamento') || '0');
+  if (Number.isNaN(orc)) return 'Orçamento inválido.';
+  const dados = { nome, destino: String(fd.get('destino') || '').trim(), dataInicio: ini, dataFim: fim, orcamentoCentavos: orc, atualizadoEm: serverTimestamp() };
+  if (id) setDoc(doc(db, 'viagens', id), dados, { merge: true }).catch(fail);
+  else {
+    const ref = doc(collection(db, 'viagens'));
+    Object.assign(dados, { membrosEmails: [meuEmail()], membrosNomes: { [meuEmail()]: primeiroNome() }, criadoEm: serverTimestamp() });
+    setDoc(ref, dados).catch(fail);
+    S.pendingOpen = ref.id;
+  }
+  return null;
+}
+const primeiroNome = () => String((S.user && S.user.displayName) || meuEmail().split('@')[0]).split(' ')[0];
+function patchViagem(dados) { return setDoc(doc(db, 'viagens', S.viagemId), { ...dados, atualizadoEm: serverTimestamp() }, { merge: true }).catch(fail); }
+
+/* ---------- Plano do dia, marés, checklist, nota ---------- */
+function formBloco(dia, i) {
+  const doc_ = achar(S.roteiro, dia), b = i != null && doc_ ? doc_.blocos[i] : null;
+  const x = b || { hora: '09:00', titulo: '', tipo: 'outro', notas: '' };
+  return `<form data-form="bloco" data-id="${esc(dia)}" data-i="${i ?? ''}" autocomplete="off"><h2>${b ? 'Editar item' : 'Novo item'} · ${fmtDiaLongo(dia)}</h2>
+    <div class="grid2"><label class="f">Hora<input type="time" name="hora" value="${esc(x.hora)}" required></label>
+    <label class="f">Tipo<select name="tipo">${Object.entries(TIPO_BLOCO).map(([k, e]) => `<option value="${k}" ${x.tipo === k ? 'selected' : ''}>${e} ${k}</option>`).join('')}</select></label></div>
+    <label class="f">O que é<input name="titulo" value="${esc(x.titulo)}" required></label>
+    <label class="f">Notas<input name="notas" value="${esc(x.notas || '')}"></label>
+    <div class="err" id="f-err"></div><button class="btn pri block" type="submit">Salvar</button>
+    ${b ? `<button class="btn bad block mt" type="button" data-act="delBloco" data-v="${esc(dia)}" data-i="${i}">Excluir</button>` : ''}</form>`;
+}
+function salvarBloco(fd, dia, i) {
+  const d = achar(S.roteiro, dia), blocos = [...((d && d.blocos) || [])];
+  const b = { hora: fd.get('hora'), titulo: String(fd.get('titulo')).trim(), tipo: fd.get('tipo'), notas: String(fd.get('notas') || '').trim() };
+  if (!b.titulo) return 'Informe o que é.';
+  if (i === '' || i == null) blocos.push(b); else blocos[Number(i)] = b;
+  blocos.sort((x, y) => x.hora.localeCompare(y.hora));
+  setDoc(dRef('roteiro', dia), { blocos }, { merge: true }).catch(fail);
+  return null;
+}
+const marestxt = (arr) => (arr || []).map((m) => m.hora + (m.alturaM != null ? ' ' + m.alturaM : '')).join(', ');
+function parseMares(t) {
+  const out = [];
+  for (const p of String(t || '').split(',').map((x) => x.trim()).filter(Boolean)) {
+    const m = p.match(/^(\d{1,2}):(\d{2})(?:\s+(\d+(?:[.,]\d+)?))?$/);
+    if (!m) return null;
+    out.push({ hora: m[1].padStart(2, '0') + ':' + m[2], alturaM: m[3] ? Number(m[3].replace(',', '.')) : null });
+  }
+  return out;
+}
+function formMares(dia) {
+  const d = achar(S.roteiro, dia) || {};
+  return `<form data-form="mares" data-id="${esc(dia)}" autocomplete="off"><h2>Marés · ${fmtDiaLongo(dia)}</h2>
+    <p class="muted small">Horários separados por vírgula, altura opcional. Ex.: 06:10 0.3, 18:30 0.4</p>
+    <label class="f">Maré baixa<input name="baixa" value="${esc(marestxt(d.mareBaixa))}"></label>
+    <label class="f">Maré alta<input name="alta" value="${esc(marestxt(d.mareAlta))}"></label>
+    <div class="err" id="f-err"></div><button class="btn pri block" type="submit">Salvar</button></form>`;
+}
+function salvarMares(fd, dia) {
+  const b = parseMares(fd.get('baixa')), a = parseMares(fd.get('alta'));
+  if (!b || !a) return 'Formato inválido. Use HH:MM e, se quiser, a altura (ex.: 06:10 0.3).';
+  setDoc(dRef('roteiro', dia), { mareBaixa: b, mareAlta: a }, { merge: true }).catch(fail);
+  return null;
+}
+function formCheck() {
+  return `<form data-form="check" autocomplete="off"><h2>Novo item</h2>
+    <label class="f">Item<input name="texto" required id="f-texto"></label>
+    <label class="f">Grupo<select name="grupo"><option value="mala">Mala</option><option value="antes_de_sair">Antes de sair</option><option value="documentos">Documentos</option><option value="outro" selected>Outros</option></select></label>
+    <div class="err" id="f-err"></div><button class="btn pri block" type="submit">Adicionar</button></form>`;
+}
+function salvarCheck(fd) {
+  const texto = String(fd.get('texto')).trim();
+  if (!texto) return 'Escreva o item.';
+  setDoc(dRef('checklist'), { texto, grupo: fd.get('grupo'), feito: false, feitoPor: null }).catch(fail);
+  return null;
+}
+function formNota(dia) {
+  const d = achar(S.diario, 'dia-' + dia) || {};
+  return `<form data-form="nota" data-id="${esc(dia)}"><h2>Como foi o dia? · ${fmtDiaLongo(dia)}</h2>
+    <label class="f"><textarea name="texto" style="min-height:120px" id="f-texto">${esc(d.texto || '')}</textarea></label>
+    <label class="f">Link do álbum de fotos (opcional)<input name="link" type="url" value="${esc(d.linkAlbum || '')}"></label>
+    <div class="err" id="f-err"></div><button class="btn pri block" type="submit">Salvar</button></form>`;
+}
+function salvarNota(fd, dia) {
+  const v = viagem();
+  const dados = { data: dia, titulo: 'Dia ' + (diasEntre(v.dataInicio, dia) + 1), texto: String(fd.get('texto') || '').trim(), linkAlbum: String(fd.get('link') || '').trim(), ordem: diasEntre(v.dataInicio, dia) + 1 };
+  const ex = achar(S.diario, 'dia-' + dia);
+  if (!ex) dados.criadoPor = meuEmail();
+  setDoc(dRef('diario', 'dia-' + dia), dados, { merge: true }).catch(fail);
+  return null;
+}
+function checkSugestoes() {
+  const L = { mala: ['protetor solar FPS alto', 'repelente', 'óculos de sol', 'chapéu/boné', 'roupa de banho', 'sapatilha para recifes', 'capa estanque para celular'],
+    antes_de_sair: ['carregador do MacBook', 'carregador do iPhone', 'powerbank', 'fazer check-in online', 'baixar cartões de embarque', 'conferir tábua de marés'],
+    documentos: ['RG ou CNH dos dois'] };
+  const b = writeBatch(db);
+  for (const [grupo, itens] of Object.entries(L)) for (const texto of itens) b.set(dRef('checklist'), { texto, grupo, feito: false, feitoPor: null });
+  b.commit().catch(fail);
+}
+
+/* ---------- Dados iniciais: Porto de Galinhas ---------- */
+function criarViagemExemplo() {
+  const me = meuEmail();
+  const vref = doc(collection(db, 'viagens'));
+  const t = (s) => new Date(s + ':00-03:00');
+  const b = writeBatch(db);
+  b.set(vref, {
+    nome: 'Porto de Galinhas 2026', destino: 'Porto de Galinhas, PE', dataInicio: '2026-11-11', dataFim: '2026-11-16',
+    orcamentoCentavos: 700000, membrosEmails: [me], membrosNomes: { [me]: primeiroNome() },
+    criadoEm: serverTimestamp(), atualizadoEm: serverTimestamp(),
+  });
+  const R = (o) => b.set(doc(collection(vref, 'reservas')), { pagoPor: null, codigo: '', ...o });
+  R({ tipo: 'hospedagem', titulo: 'Airbnb na vila — 50 m da praia', fornecedor: 'Airbnb', status: 'confirmada', statusPagamento: 'pago', pagoPor: me,
+    valorCentavos: 177000, inicio: t('2026-11-11T15:00'), fim: t('2026-11-16T12:00'),
+    detalhes: '5 noites × R$ 354. Self check-in com fechadura eletrônica (senha chega pelo app Airbnb). Apartamento inteiro, 1 quarto, piscina no rooftop.',
+    prazoCritico: { quando: t('2026-11-10T15:00'), descricao: 'Fim do cancelamento gratuito' },
+    linkOficial: 'https://www.airbnb.com.br/trips',
+    canalAtendimento: 'Mensagens pelo app Airbnb. Atendimento Airbnb 24h pela Central de Ajuda no app.',
+    notas: 'Pagamentos SÓ pelo app Airbnb. Pedido de Pix, depósito ou taxa extra = golpe.', ordem: 1 });
+  R({ tipo: 'voo', titulo: 'Azul direto GRU ⇄ REC', fornecedor: 'Azul via Booking.com', status: 'problema', statusPagamento: 'nao_cobrado',
+    valorCentavos: 196600, inicio: t('2026-11-11T10:45'), fim: t('2026-11-16T15:50'),
+    detalhes: 'Ida 11/11 GRU 10h45 → REC 13h50. Volta 16/11 REC 12h30 → GRU 15h50.', prazoCritico: null,
+    linkOficial: 'https://www.booking.com',
+    canalAtendimento: 'SÓ pelo app/site Booking LOGADO → Minhas reservas → Atendimento. Nunca ligar para número achado no Google.',
+    notas: 'Reserva ficou pendente, sem cobrança. Não comprar de novo antes de saber o status. Se cair, comprar direto no site/app da Azul. Conferir se R$ 983 inclui taxas e bagagem despachada.', ordem: 2 });
+  const C = (o) => b.set(doc(collection(vref, 'contatos')), { telefone: '', telefoneNormalizado: '', fonte: '', precoCombinadoCentavos: null, notas: '', ...o });
+  C({ nome: 'Anfitriã do Airbnb', tipo: 'hospedagem', selo: 'verificado', fonte: 'Página oficial da reserva no app Airbnb',
+    alerta: 'Número oficial é o do app. Se alguém de outro número disser ser a anfitriã, desconfiar. Pagamentos só pelo app.' });
+  C({ nome: 'Atendimento Booking.com', tipo: 'atendimento', selo: 'verificado', fonte: '—',
+    alerta: 'Telefone oficial só aparece logado no app. Todos os números do Google são golpe.' });
+  C({ nome: 'Transfer Recife → Porto', tipo: 'transfer', selo: 'nao_verificado', alerta: 'Usar empresa avaliada ou Uber/99. Desconfiar de abordagem no desembarque.' });
+  C({ nome: 'Jangadas — piscinas naturais', tipo: 'jangada', selo: 'nao_verificado', alerta: 'Contratar só no ponto oficial da associação de jangadeiros, preço tabelado.' });
+  b.commit().catch(fail);
+  S.viagemId = null;
+  toast('Criando viagem de exemplo…');
+}
+
+/* ============================================================
+   Sheet, ações e eventos
+   ============================================================ */
+function openSheet(html) {
+  $('sheet-root').innerHTML = `<div class="sheet-bg" data-act="fechar"></div><div class="sheet">${html}</div>`;
+}
+function closeSheet() { $('sheet-root').innerHTML = ''; }
+function inputPrompt(titulo, campos, onOk) {
+  openSheet(`<form data-form="prompt"><h2>${esc(titulo)}</h2>${campos.map(([n, l, t]) => `<label class="f">${esc(l)}<input name="${n}" type="${t || 'text'}" required></label>`).join('')}
+    <div class="err" id="f-err"></div><button class="btn pri block" type="submit">OK</button></form>`);
+  window.__prompt = onOk;
+}
+const achar = (lista, id) => lista.find((x) => x.id === id);
+
+const ACT = {
+  entrar, sair,
+  ir: (d) => { S.tab = d.tab; S.sub = d.v || null; render(); window.scrollTo(0, 0); },
+  diaMov: (d) => { const v = viagem(); const x = new Date(diaAtivo(v) + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + Number(d.v)); S.dia = x.toISOString().slice(0, 10); render(); },
+  diaHoje: () => { S.dia = null; render(); },
+  novoBloco: (d) => openSheet(formBloco(d.v)),
+  editBloco: (d) => openSheet(formBloco(d.v, Number(d.i))),
+  delBloco: (d) => { const x = achar(S.roteiro, d.v); if (x && confirm('Excluir este item?')) { setDoc(dRef('roteiro', d.v), { blocos: x.blocos.filter((_, i) => i !== Number(d.i)) }, { merge: true }).catch(fail); closeSheet(); } },
+  mares: (d) => openSheet(formMares(d.v)),
+  novoCheck: () => { openSheet(formCheck()); setTimeout(() => { const i = $('f-texto'); if (i) i.focus(); }, 60); },
+  toggleCheck: (d) => { const c = achar(S.checklist, d.id); if (c) setDoc(dRef('checklist', d.id), { feito: !c.feito, feitoPor: c.feito ? null : meuEmail() }, { merge: true }).catch(fail); },
+  delCheck: (d) => deleteDoc(dRef('checklist', d.id)).catch(fail),
+  checkSugestoes,
+  notaDia: (d) => { openSheet(formNota(d.v)); setTimeout(() => { const i = $('f-texto'); if (i) i.focus(); }, 60); },
+  copiarDiario: () => copiarTexto(diarioMd(), 'Diário copiado'),
+  fechar: closeSheet,
+  tab: (d) => { S.tab = d.tab; S.sub = null; render(); window.scrollTo(0, 0); },
+  sub: (d) => { S.sub = d.v || null; render(); window.scrollTo(0, 0); },
+  abrirViagem: (d) => abrirViagem(d.id),
+  trocarViagem: () => { unsubSub.forEach((f) => f()); unsubSub = []; S.viagemId = null; render(); },
+  seed: criarViagemExemplo,
+  novaViagem: () => openSheet(formViagem()),
+  editViagem: () => openSheet(formViagem(viagem())),
+  novoGasto: () => { openSheet(formGasto()); setTimeout(() => { const i = $('f-valor'); if (i) i.focus(); }, 60); },
+  editGasto: (d) => openSheet(formGasto(achar(S.gastos, d.id))),
+  delGasto: (d) => { if (confirm('Excluir este gasto?')) { deleteDoc(dRef('gastos', d.id)).catch(fail); closeSheet(); } },
+  fTipo: (d) => { S.fGasto.tipo = d.v; render(); },
+  fCat: (d) => { S.fGasto.cat = d.v; render(); },
+  fPessoa: (d) => { S.fGasto.pessoa = d.v; render(); },
+  novaReserva: () => openSheet(formReserva()),
+  editReserva: (d) => openSheet(formReserva(achar(S.reservas, d.id))),
+  delReserva: (d) => { if (confirm('Excluir esta reserva?')) { deleteDoc(dRef('reservas', d.id)).catch(fail); closeSheet(); } },
+  copiar: (d) => { const r = achar(S.reservas, d.id); copiarTexto(r && r.codigo, 'Código copiado'); },
+  canal: (d) => { const r = achar(S.reservas, d.id); openSheet(`<h2>Atendimento — ${esc(r.titulo)}</h2><p>${esc(r.canalAtendimento)}</p><button class="btn block" data-act="fechar">Fechar</button>`); },
+  novoContato: () => openSheet(formContato()),
+  editContato: (d) => openSheet(formContato(achar(S.contatos, d.id))),
+  delContato: (d) => { if (confirm('Excluir este contato?')) { deleteDoc(dRef('contatos', d.id)).catch(fail); closeSheet(); } },
+  ligar: (d) => {
+    const c = achar(S.contatos, d.id);
+    const susp = selos(c) === 'suspeito';
+    if (susp && !confirm('⚠️ Este contato está marcado como SUSPEITO (possível golpe). Ligar mesmo assim?')) return;
+    location.href = 'tel:+' + normalizarTelefone(c.telefone);
+  },
+  zapSusp: () => {},
+  copiarTel: (d) => { const c = achar(S.contatos, d.id); copiarTexto(c && c.telefone, 'Telefone copiado'); },
+  alertaCancelar: () => { $('alert-root').innerHTML = ''; },
+  alertaSalvar: () => window.__alertaSalvar && window.__alertaSalvar(),
+  tema: (d) => { lsSet('rota-tema', d.v); aplicarTema(); render(); },
+  addMembro: () => inputPrompt('Adicionar membro', [['email', 'E-mail (Google)', 'email'], ['nome', 'Nome']], (fd) => {
+    const email = String(fd.get('email')).trim().toLowerCase(), nome = String(fd.get('nome')).trim();
+    const v = viagem();
+    if ((v.membrosEmails || []).includes(email)) return 'Esse e-mail já é membro.';
+    patchViagem({ membrosEmails: [...(v.membrosEmails || []), email], membrosNomes: { [email]: nome } });
+    return null;
+  }),
+  renMembro: (d) => { inputPrompt('Nome de ' + d.v, [['nome', 'Nome']], (fd) => { const nome = String(fd.get('nome')).trim(); if (!nome) return 'Informe o nome.'; patchViagem({ membrosNomes: { [d.v]: nome } }); return null; }); },
+  rmMembro: (d) => { if (confirm('Remover ' + d.v + ' da viagem?')) patchViagem({ membrosEmails: viagem().membrosEmails.filter((e) => e !== d.v) }); },
+  addBlack: () => inputPrompt('Número de golpe', [['numero', 'Telefone', 'tel'], ['motivo', 'Motivo']], (fd) => {
+    const n = normalizarTelefone(fd.get('numero'));
+    if (n.length < 10) return 'Telefone inválido.';
+    patchViagem({ blacklistExtra: [...(viagem().blacklistExtra || []), { numero: n, motivo: String(fd.get('motivo')).trim() }] });
+    return null;
+  }),
+  rmBlack: (d) => patchViagem({ blacklistExtra: (viagem().blacklistExtra || []).filter((_, i) => i !== Number(d.v)) }),
+};
+function copiarTexto(txt, msg) {
+  if (!txt) return;
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(msg)).catch(() => {
+    const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast(msg); } catch (_) { toast('Não foi possível copiar'); }
+    ta.remove();
+  });
+}
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const fn = ACT[el.dataset.act];
+  if (!fn) return;
+  if (el.tagName === 'A' && el.dataset.act === 'zapSusp' && !confirm('⚠️ Contato SUSPEITO (possível golpe). Abrir WhatsApp mesmo assim?')) e.preventDefault();
+  else if (el.tagName !== 'A' && el.type !== 'checkbox') e.preventDefault();
+  fn(el.dataset);
+});
+
+document.addEventListener('submit', (e) => {
+  const form = e.target.closest('form[data-form]');
+  if (!form) return;
+  e.preventDefault();
+  const fd = new FormData(form), id = form.dataset.id || '';
+  let erro = null;
+  try {
+    switch (form.dataset.form) {
+      case 'gasto': erro = salvarGasto(fd, id); break;
+      case 'reserva': erro = salvarReserva(fd, id); break;
+      case 'contato': erro = salvarContato(fd, id); break;
+      case 'viagem': erro = salvarViagem(fd, id); break;
+      case 'bloco': erro = salvarBloco(fd, id, form.dataset.i); break;
+      case 'mares': erro = salvarMares(fd, id); break;
+      case 'check': erro = salvarCheck(fd); break;
+      case 'nota': erro = salvarNota(fd, id); break;
+      case 'prompt': erro = window.__prompt(fd); break;
+    }
+  } catch (x) { erro = x.message; }
+  if (erro === 'pendente') return; // aguardando confirmação do alerta antigolpe
+  if (erro) { const el = $('f-err'); if (el) el.textContent = erro; return; }
+  closeSheet();
+});
+
+/* Toque longo no código da reserva: revela por 10 s */
+let pressTimer = null;
+function startPress(e) {
+  const el = e.target.closest('[data-reveal]');
+  if (!el) return;
+  const id = el.dataset.reveal;
+  pressTimer = setTimeout(() => {
+    S.revelados[id] = Date.now() + 10000; render();
+    setTimeout(render, 10100);
+  }, 500);
+}
+const endPress = () => { clearTimeout(pressTimer); pressTimer = null; };
+document.addEventListener('pointerdown', startPress);
+['pointerup', 'pointercancel', 'pointerleave', 'scroll'].forEach((ev) => document.addEventListener(ev, endPress, true));
+document.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-reveal]')) e.preventDefault(); });
+
+window.addEventListener('online', () => { S.online = true; render(); });
+window.addEventListener('offline', () => { S.online = false; render(); });
+
+/* ---------- Boot ---------- */
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if (!CONFIGURADO) { S.auth = 'semconfig'; render(); } else { render(); iniciarFirebase(); }
+</script>
+</body>
+</html>
