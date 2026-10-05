@@ -159,6 +159,8 @@ nav button.on{color:var(--acc)}
 .plan:first-of-type{margin-top:8px}
 .plan .hr{width:48px;color:var(--acc);font-weight:700}
 .check{display:flex;align-items:center;gap:12px;padding:10px 0;font-size:16px}
+.xdel{background:none;border:0;color:var(--tx2);font-size:18px;width:40px;height:40px;border-radius:10px;flex:none}
+.xdel:active{background:var(--s2);color:var(--bad)}
 .chk-txt{background:none;border:0;text-align:left;padding:9px 0;font-size:16px;color:inherit}
 .mt0{margin-top:3px}
 .check input{width:22px;height:22px;accent-color:var(--acc)}
@@ -1024,7 +1026,8 @@ const prontos = (l) => l.filter((c) => c.feito).length;
 const CATS_MALA = [['roupas', '👕', 'Roupas'], ['calcados', '👟', 'Calçados e acessórios'], ['higiene', '🧴', 'Higiene'], ['saude', '💊', 'Saúde'],
   ['eletronicos', '🔌', 'Eletrônicos'], ['documentos', '🪪', 'Documentos e dinheiro'], ['praia', '🏖️', 'Praia'], ['trabalho', '💻', 'Trabalho'], ['outros', '📦', 'Outros']];
 const linhaCheck = (c, badge) => `<div class="row"><label class="check" style="padding-right:0"><input type="checkbox" data-act="toggleCheck" data-id="${esc(c.id)}" ${c.feito ? 'checked' : ''}></label>
-  <button class="chk-txt grow" data-act="editCheck" data-id="${esc(c.id)}"><span style="${c.feito ? 'text-decoration:line-through;opacity:.55' : ''}">${esc(c.texto)}</span>${badge ? ` <span class="badge b-muted">${esc(badge)}</span>` : ''}</button></div>`;
+  <button class="chk-txt grow" data-act="editCheck" data-id="${esc(c.id)}"><span style="${c.feito ? 'text-decoration:line-through;opacity:.55' : ''}">${esc(c.texto)}</span>${badge ? ` <span class="badge b-muted">${esc(badge)}</span>` : ''}</button>
+  <button class="xdel" data-act="xCheck" data-id="${esc(c.id)}" aria-label="Remover da lista">✕</button></div>`;
 const donosMala = () => membros().concat(membros().length > 1 ? ['ambos'] : []);
 const nomeMala = (e) => (e === 'ambos' ? 'Dos dois' : nomeDe(e));
 
@@ -1312,6 +1315,7 @@ const ACT = {
   irMala: (d) => { S.malaSel = d.v; S.tab = 'viagem'; S.sub = 'checklist'; render(); window.scrollTo(0, 0); },
   novoCheck: (d) => { openSheet(formCheck(null, { tipo: d.tipo, dono: d.dono, dia: d.dia })); setTimeout(() => { const i = $('f-texto'); if (i) i.focus(); }, 60); },
   toggleCheck: (d) => { const c = achar(S.checklist, d.id); if (c) setDoc(dRef('checklist', d.id), { feito: !c.feito, feitoPor: c.feito ? null : meuEmail(), feitoEm: c.feito ? null : serverTimestamp() }, { merge: true }).catch(fail); },
+  xCheck: (d) => deleteDoc(dRef('checklist', d.id)).catch(fail), // sem confirmação: é fácil adicionar de novo
   editCheck: (d) => openSheet(formCheck(achar(S.checklist, d.id))),
   delCheck: (d) => { if (confirm('Excluir este item?')) { deleteDoc(dRef('checklist', d.id)).catch(fail); closeSheet(); } },
   checkSugestoes,
