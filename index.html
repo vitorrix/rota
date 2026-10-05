@@ -473,7 +473,7 @@ const S = {
   user: null,
   viagens: null,   // null = ainda não carregou
   viagemId: null,
-  reservas: [], gastos: [], contatos: [], roteiro: [], checklist: [], diario: [],
+  reservas: [], gastos: [], contatos: [], roteiro: [], checklist: [], diario: [], compras: [],
   tab: 'hoje', sub: null, dia: null, malaSel: null,
   fGasto: { tipo: 'realizado', cat: '', pessoa: '' },
   revelados: {},
@@ -564,7 +564,7 @@ function ouvirViagens() {
 }
 function abrirViagem(id) {
   unsubSub.forEach((f) => f()); unsubSub = [];
-  S.viagemId = id; S.reservas = []; S.gastos = []; S.contatos = []; S.tab = 'hoje'; S.sub = null; S.dia = null; S.roteiro = []; S.checklist = []; S.diario = [];
+  S.viagemId = id; S.reservas = []; S.gastos = []; S.contatos = []; S.tab = 'hoje'; S.sub = null; S.dia = null; S.roteiro = []; S.checklist = []; S.diario = []; S.compras = [];
   lsSet('rota-viagem', id);
   // Logo após criar a viagem, o servidor pode negar a leitura das subcoleções (a regra lê o doc da viagem,
   // que ainda não chegou). Nesse caso o listener morre: reassina após uma pausa em vez de mostrar erro.
@@ -587,7 +587,7 @@ function abrirViagem(id) {
     ligar();
     return () => { morto = true; clearTimeout(timer); if (un) un(); };
   };
-  unsubSub = ['reservas', 'gastos', 'contatos', 'roteiro', 'checklist', 'diario'].map((n) => sub(n, n));
+  unsubSub = ['reservas', 'gastos', 'contatos', 'roteiro', 'checklist', 'diario', 'compras'].map((n) => sub(n, n));
   render();
 }
 const colRef = (nome) => collection(db, 'viagens', S.viagemId, nome);
@@ -730,6 +730,8 @@ function abaHoje() {
     <div class="actions"><button class="btn sm ghost" data-act="mares" data-v="${dia}">🌊 Marés do dia</button></div></div>`;
 
   html += cardTarefasDoDia(dia);
+  const aComprar = S.compras.filter((c) => !c.feito);
+  if (aComprar.length) html += `<button class="item" data-act="ir" data-tab="viagem" data-v="compras"><span class="ico">🛒</span><span class="grow"><b>Lista de compras</b><br><span class="muted small">${aComprar.length} ${aComprar.length === 1 ? 'item' : 'itens'} a comprar</span></span><span class="muted">›</span></button>`;
 
   // gastos do dia
   html += `<div class="card"><div class="row between"><h3 style="margin:0">Gastos do dia</h3><b class="num">${brl(totDia)}</b></div>
@@ -1010,11 +1012,12 @@ function abaViagem() {
   if (S.sub === 'config') return voltar + abaConfig();
   if (S.sub === 'reservas') return voltar + abaReservas();
   if (S.sub === 'contatos') return voltar + abaContatos();
+  if (S.sub === 'compras') return voltar + abaCompras();
   if (S.sub === 'checklist') return voltar + abaChecklist();
   if (S.sub === 'diario') return voltar + abaDiario();
-  const pend = S.checklist.filter((c) => tipoCheck(c) === 'mala' && !c.feito).length;
+  const pend = S.checklist.filter((c) => tipoCheck(c) === 'mala' && !c.feito).length, comprasPend = S.compras.filter((c) => !c.feito).length;
   const itens = [['reservas', '🎫', 'Reservas', `${S.reservas.length}`], ['contatos', '📞', 'Contatos', `${S.contatos.length}`],
-    ['checklist', '🧳', 'Pré-viagem (malas)', pend ? `${pend} faltam` : ''], ['diario', '📓', 'Diário', `${S.diario.length}`], ['config', '⚙️', 'Configurações', '']];
+    ['compras', '🛒', 'Lista de compras', comprasPend ? `${comprasPend} a comprar` : ''], ['checklist', '🧳', 'Pré-viagem (malas)', pend ? `${pend} faltam` : ''], ['diario', '📓', 'Diário', `${S.diario.length}`], ['config', '⚙️', 'Configurações', '']];
   return `<div class="top"><h1>Viagem</h1></div><div class="menu">
     ${itens.map(([k, i, l, c]) => `<button class="item" data-act="sub" data-v="${k}"><span class="ico">${i}</span>${l}<span class="chev">${c} ›</span></button>`).join('')}</div>`;
 }
@@ -1069,6 +1072,35 @@ function cardPreViagem() {
   return `<div class="card"><div class="row between"><h3 style="margin:0">Pré-viagem · malas</h3><b class="num">${pct}%</b></div>
     <div class="hbar"><i style="width:${pct}%"></i></div>
     <div class="mt">${donosMala().map((e) => { const l = malas.filter((c) => donoCheck(c) === e); return `<button class="btn sm ghost" style="margin:0 6px 6px 0" data-act="irMala" data-v="${esc(e)}">🧳 ${esc(nomeMala(e))} ${prontos(l)}/${l.length}</button>`; }).join('')}</div></div>`;
+}
+/* ---------- Lista de compras (compartilhada) ---------- */
+const linhaCompra = (c) => `<div class="row"><label class="check" style="padding-right:0"><input type="checkbox" data-act="toggleCompra" data-id="${esc(c.id)}" ${c.feito ? 'checked' : ''}></label>
+  <button class="chk-txt grow" data-act="editCompra" data-id="${esc(c.id)}"><span style="${c.feito ? 'text-decoration:line-through;opacity:.55' : ''}">${esc(c.texto)}</span>${c.obs ? ` <span class="muted small">· ${esc(c.obs)}</span>` : ''}
+  ${c.criadoPor && !c.feito ? `<div class="mt0"><span class="badge b-muted">${esc(nomeDe(c.criadoPor))}</span></div>` : ''}${c.feito && c.feitoPor ? `<div class="mt0 muted small">✓ ${esc(nomeDe(c.feitoPor))}</div>` : ''}</button>
+  <button class="xdel" data-act="xCompra" data-id="${esc(c.id)}" aria-label="Remover">✕</button></div>`;
+function abaCompras() {
+  const pend = S.compras.filter((c) => !c.feito).sort((a, b) => (a.criadoEm ?? Infinity) - (b.criadoEm ?? Infinity));
+  const ok = S.compras.filter((c) => c.feito).sort((a, b) => (a.texto || '').localeCompare(b.texto || ''));
+  let html = `<div class="top"><h1>Lista de compras</h1><button class="btn sm pri" data-act="novaCompra">+ Item</button></div>`;
+  if (!S.compras.length) return html + '<div class="card center"><div style="font-size:42px">🛒</div><p class="muted">Vocês dois podem adicionar o que precisam comprar. A lista é a mesma para os dois.</p><button class="btn pri" data-act="novaCompra">Adicionar o primeiro item</button></div>';
+  html += `<div class="day"><span>A comprar</span><span>${pend.length}</span></div><div class="card" style="padding:2px 14px">${pend.map(linhaCompra).join('') || '<div class="muted small" style="padding:12px 0">Tudo comprado 🎉</div>'}</div>`;
+  if (ok.length) html += `<div class="day"><span>Comprados</span><span>${ok.length}</span></div><div class="card" style="padding:2px 14px">${ok.map(linhaCompra).join('')}</div>`;
+  return html;
+}
+function formCompra(c) {
+  return `<form data-form="compra" data-id="${esc((c && c.id) || '')}" autocomplete="off"><h2>${c ? 'Editar item' : 'Novo item de compra'}</h2>
+    <label class="f">O que comprar<input name="texto" required id="f-texto" value="${esc((c && c.texto) || '')}"></label>
+    <label class="f">Quantidade ou detalhe (opcional)<input name="obs" value="${esc((c && c.obs) || '')}" placeholder="ex.: 2 pacotes, sem glúten"></label>
+    <div class="err" id="f-err"></div><button class="btn pri block" type="submit">${c ? 'Salvar' : 'Adicionar'}</button>
+    ${c ? `<button class="btn bad block mt" type="button" data-act="delCompra" data-id="${esc(c.id)}">Excluir</button>` : '<div class="muted small center mt">A janela fica aberta para você adicionar vários seguidos.</div>'}</form>`;
+}
+function salvarCompra(fd, id) {
+  const texto = String(fd.get('texto')).trim();
+  if (!texto) return 'Escreva o item.';
+  const dados = { texto, obs: String(fd.get('obs') || '').trim() };
+  if (!id) Object.assign(dados, { feito: false, feitoPor: null, criadoPor: meuEmail(), criadoEm: serverTimestamp() });
+  setDoc(dRef('compras', id), dados, { merge: true }).catch(fail);
+  return null;
 }
 function abaDiario() {
   const l = [...S.diario].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
@@ -1315,6 +1347,11 @@ const ACT = {
   irMala: (d) => { S.malaSel = d.v; S.tab = 'viagem'; S.sub = 'checklist'; render(); window.scrollTo(0, 0); },
   novoCheck: (d) => { openSheet(formCheck(null, { tipo: d.tipo, dono: d.dono, dia: d.dia })); setTimeout(() => { const i = $('f-texto'); if (i) i.focus(); }, 60); },
   toggleCheck: (d) => { const c = achar(S.checklist, d.id); if (c) setDoc(dRef('checklist', d.id), { feito: !c.feito, feitoPor: c.feito ? null : meuEmail(), feitoEm: c.feito ? null : serverTimestamp() }, { merge: true }).catch(fail); },
+  novaCompra: () => { openSheet(formCompra()); setTimeout(() => { const i = $('f-texto'); if (i) i.focus(); }, 60); },
+  editCompra: (d) => openSheet(formCompra(achar(S.compras, d.id))),
+  delCompra: (d) => { if (confirm('Excluir este item?')) { deleteDoc(dRef('compras', d.id)).catch(fail); closeSheet(); } },
+  xCompra: (d) => deleteDoc(dRef('compras', d.id)).catch(fail),
+  toggleCompra: (d) => { const c = achar(S.compras, d.id); if (c) setDoc(dRef('compras', d.id), { feito: !c.feito, feitoPor: c.feito ? null : meuEmail() }, { merge: true }).catch(fail); },
   xCheck: (d) => deleteDoc(dRef('checklist', d.id)).catch(fail), // sem confirmação: é fácil adicionar de novo
   editCheck: (d) => openSheet(formCheck(achar(S.checklist, d.id))),
   delCheck: (d) => { if (confirm('Excluir este item?')) { deleteDoc(dRef('checklist', d.id)).catch(fail); closeSheet(); } },
@@ -1405,12 +1442,16 @@ document.addEventListener('submit', (e) => {
       case 'bloco': erro = salvarBloco(fd, id, form.dataset.i); break;
       case 'mares': erro = salvarMares(fd, id); break;
       case 'check': erro = salvarCheck(fd, id); break;
+      case 'compra': erro = salvarCompra(fd, id); break;
       case 'nota': erro = salvarNota(fd, id); break;
       case 'prompt': erro = window.__prompt(fd); break;
     }
   } catch (x) { erro = x.message; }
   if (erro === 'pendente') return; // aguardando confirmação do alerta antigolpe
   if (erro) { const el = $('f-err'); if (el) el.textContent = erro; return; }
+  if (form.dataset.form === 'compra' && !id) { // adicionar vários seguidos
+    form.reset(); const i = $('f-texto'); if (i) i.focus(); toast('Adicionado ✓'); return;
+  }
   closeSheet();
 });
 

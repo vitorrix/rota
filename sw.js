@@ -1,5 +1,5 @@
 // Service worker do Rota: app shell offline.
-const CACHE = 'rota-v11';
+const CACHE = 'rota-v12';
 const SHELL = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
