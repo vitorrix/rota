@@ -159,6 +159,8 @@ nav button.on{color:var(--acc)}
 .plan:first-of-type{margin-top:8px}
 .plan .hr{width:48px;color:var(--acc);font-weight:700}
 .check{display:flex;align-items:center;gap:12px;padding:10px 0;font-size:16px}
+.chk-txt{background:none;border:0;text-align:left;padding:9px 0;font-size:16px;color:inherit}
+.mt0{margin-top:3px}
 .check input{width:22px;height:22px;accent-color:var(--acc)}
 
 /* ===== Sheet / formulários ===== */
@@ -711,6 +713,9 @@ function abaHoje() {
       <div class="muted small">Limite ${brl(pg.limiteHoje)} · gasto hoje ${brl(pg.gastosHoje)}</div></div>`;
   } else if (pg.estado === 'depois') html += resumoFinal(v, pg);
 
+  // pré-viagem (só antes da viagem começar): vem primeiro, é o que importa agora
+  if (pg.estado === 'antes') html += cardPreViagem();
+
   // plano do dia
   const ev = eventosDoDia(dia), rot = achar(S.roteiro, dia) || {};
   const mare = (l, arr) => (arr && arr.length ? `${l} ${arr.map((m) => m.hora + (m.alturaM != null ? ` (${m.alturaM}m)` : '')).join(' · ')}` : '');
@@ -727,14 +732,6 @@ function abaHoje() {
     ${gDia.length ? gDia.sort((a, b) => (b.criadoEm || 0) - (a.criadoEm || 0)).map((g) => `<button class="item mt" data-act="editGasto" data-id="${esc(g.id)}"><span class="ico">${catInfo(g.categoria)[1]}</span>
       <span class="grow"><b>${esc(g.descricao || catInfo(g.categoria)[2])}</b><br><span class="muted small">${esc(nomeDe(g.pagoPor))}</span></span><span class="v">${brl(g.valorCentavos)}</span></button>`).join('')
       : '<div class="muted small mt">Nenhum gasto neste dia.</div>'}</div>`;
-
-  // checklist (só pendentes)
-  const pend = S.checklist.filter((c) => !c.feito);
-  html += `<div class="card"><div class="row between"><h3 style="margin:0">Checklist · ${pend.length} ${pend.length === 1 ? 'falta' : 'faltam'}</h3>
-    <button class="btn sm" data-act="novoCheck">+ Item</button></div>
-    ${pend.slice(0, 5).map((c) => `<label class="check"><input type="checkbox" data-act="toggleCheck" data-id="${esc(c.id)}"><span>${esc(c.texto)}</span></label>`).join('')}
-    ${pend.length > 5 ? `<button class="btn sm ghost mt" data-act="ir" data-tab="viagem" data-v="checklist">Ver todos (${pend.length})</button>` : ''}
-    ${!S.checklist.length ? '<div class="muted small mt">Vazio. <button class="btn sm" data-act="checkSugestoes">Adicionar itens sugeridos</button></div>' : ''}</div>`;
 
   // nota do dia
   const dd = achar(S.diario, 'dia-' + dia);
@@ -1013,22 +1010,58 @@ function abaViagem() {
   if (S.sub === 'diario') return voltar + abaDiario();
   const pend = S.checklist.filter((c) => !c.feito).length;
   const itens = [['reservas', '🎫', 'Reservas', `${S.reservas.length}`], ['contatos', '📞', 'Contatos', `${S.contatos.length}`],
-    ['checklist', '✅', 'Checklist', pend ? `${pend} faltam` : ''], ['diario', '📓', 'Diário', `${S.diario.length}`], ['config', '⚙️', 'Configurações', '']];
+    ['checklist', '🧳', 'Pré-viagem', pend ? `${pend} faltam` : ''], ['diario', '📓', 'Diário', `${S.diario.length}`], ['config', '⚙️', 'Configurações', '']];
   return `<div class="top"><h1>Viagem</h1></div><div class="menu">
     ${itens.map(([k, i, l, c]) => `<button class="item" data-act="sub" data-v="${k}"><span class="ico">${i}</span>${l}<span class="chev">${c} ›</span></button>`).join('')}</div>`;
 }
-function abaChecklist() {
-  const grupos = { mala: 'Mala', antes_de_sair: 'Antes de sair', documentos: 'Documentos', outro: 'Outros' };
-  let html = `<div class="top"><h1>Checklist</h1><button class="btn sm pri" data-act="novoCheck">+ Item</button></div>`;
-  if (!S.checklist.length) html += '<div class="card center"><button class="btn pri" data-act="checkSugestoes">Adicionar itens sugeridos</button></div>';
-  for (const [k, nome] of Object.entries(grupos)) {
-    const l = S.checklist.filter((c) => (c.grupo || 'outro') === k).sort((a, b) => a.feito - b.feito);
-    if (!l.length) continue;
-    html += `<div class="day"><span>${nome}</span><span>${l.filter((c) => c.feito).length}/${l.length}</span></div><div class="card" style="padding:4px 14px">${l.map((c) =>
-      `<div class="row"><label class="check grow"><input type="checkbox" data-act="toggleCheck" data-id="${esc(c.id)}" ${c.feito ? 'checked' : ''}><span style="${c.feito ? 'text-decoration:line-through;opacity:.55' : ''}">${esc(c.texto)}</span></label>
-      <button class="btn sm ghost" data-act="delCheck" data-id="${esc(c.id)}">✕</button></div>`).join('')}</div>`;
+/* ---------- Pré-viagem: tarefas + malas (visíveis para os dois) ---------- */
+const tipoCheck = (c) => (c.grupo === 'mala' ? 'mala' : 'tarefa'); // itens antigos (antes_de_sair, documentos…) viram tarefas
+const donoCheck = (c) => c.dono || 'ambos';
+function somaDias(dia, n) { const x = new Date(dia + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+const ordemCheck = (a, b) => (a.feito - b.feito) || (a.prazo || '9999').localeCompare(b.prazo || '9999') || (a.texto || '').localeCompare(b.texto || '');
+function linhaCheck(c, mostrarDono) {
+  const h = hoje(), meta = [];
+  if (c.prazo) {
+    const d = diasEntre(h, c.prazo);
+    meta.push(`<span class="badge ${c.feito ? 'b-muted' : d < 0 ? 'b-bad' : d <= 3 ? 'b-warn' : 'b-muted'}">${d < 0 && !c.feito ? 'atrasado · ' : 'até '}${fmtDia(c.prazo)}</span>`);
   }
-  return html;
+  if (mostrarDono) meta.push(`<span class="badge b-muted">${esc(nomeDe(donoCheck(c)))}</span>`);
+  if (c.feito && c.feitoPor) meta.push(`<span class="muted small">✓ ${esc(nomeDe(c.feitoPor))}</span>`);
+  return `<div class="row"><label class="check" style="padding-right:0"><input type="checkbox" data-act="toggleCheck" data-id="${esc(c.id)}" ${c.feito ? 'checked' : ''}></label>
+    <button class="chk-txt grow" data-act="editCheck" data-id="${esc(c.id)}"><span style="${c.feito ? 'text-decoration:line-through;opacity:.55' : ''}">${esc(c.texto)}</span>${meta.length ? `<div class="mt0">${meta.join(' ')}</div>` : ''}</button></div>`;
+}
+function secoesPre() {
+  const ms = membros();
+  const lista = [{ chave: 'tarefa', titulo: 'Tarefas', tipo: 'tarefa', dono: 'ambos', itens: S.checklist.filter((c) => tipoCheck(c) === 'tarefa').sort(ordemCheck) }];
+  for (const e of ms.concat(ms.length > 1 ? ['ambos'] : [])) {
+    lista.push({ chave: 'mala-' + e, titulo: e === 'ambos' ? 'Mala compartilhada' : 'Mala · ' + nomeDe(e), tipo: 'mala', dono: e,
+      itens: S.checklist.filter((c) => tipoCheck(c) === 'mala' && donoCheck(c) === e).sort(ordemCheck) });
+  }
+  return lista;
+}
+const prontos = (l) => l.filter((c) => c.feito).length;
+function abaChecklist() {
+  const secoes = secoesPre(), todos = S.checklist.length, ok = prontos(S.checklist);
+  let html = `<div class="top"><h1>Pré-viagem</h1><button class="btn sm pri" data-act="novoCheck" data-tipo="tarefa" data-dono="ambos">+ Item</button></div>`;
+  if (!todos) return html + '<div class="card center"><p class="muted">Nada aqui ainda.</p><button class="btn pri" data-act="checkSugestoes">Adicionar itens sugeridos</button></div>';
+  html += `<div class="card"><div class="row between"><b>${ok} de ${todos} prontos</b><span class="muted small">${todos - ok} faltam</span></div><div class="hbar"><i style="width:${(ok / todos * 100).toFixed(0)}%"></i></div></div>`;
+  for (const sc of secoes) {
+    html += `<div class="day"><span>${esc(sc.titulo)}</span><span>${prontos(sc.itens)}/${sc.itens.length}</span></div><div class="card" style="padding:4px 14px">
+      ${sc.itens.map((c) => linhaCheck(c, sc.tipo === 'tarefa')).join('') || '<div class="muted small" style="padding:10px 0">Nenhum item.</div>'}
+      <div style="padding:6px 0 10px"><button class="btn sm ghost" data-act="novoCheck" data-tipo="${sc.tipo}" data-dono="${esc(sc.dono)}">+ Item</button></div></div>`;
+  }
+  return html + '<div class="center mt"><button class="btn sm ghost" data-act="checkSugestoes">Adicionar itens sugeridos que faltam</button></div>';
+}
+function cardPreViagem() {
+  const h = hoje(), v = viagem(), pend = S.checklist.filter((c) => !c.feito);
+  if (!S.checklist.length) return `<div class="card"><h3>Pré-viagem</h3><div class="muted small">Tarefas e malas dos dois, num lugar só.</div>
+    <div class="actions"><button class="btn sm pri" data-act="checkSugestoes">Adicionar itens sugeridos</button></div></div>`;
+  const tar = pend.filter((c) => tipoCheck(c) === 'tarefa').sort(ordemCheck).slice(0, 4);
+  const malas = secoesPre().filter((s_) => s_.tipo === 'mala' && s_.itens.length);
+  return `<div class="card"><div class="row between"><h3 style="margin:0">Pré-viagem · ${pend.length} ${pend.length === 1 ? 'pendente' : 'pendentes'}</h3>
+    <button class="btn sm" data-act="ir" data-tab="viagem" data-v="checklist">Abrir</button></div>
+    ${tar.map((c) => linhaCheck(c, true)).join('') || '<div class="muted small mt">Nenhuma tarefa pendente 🎉</div>'}
+    ${malas.length ? `<div class="mt">${malas.map((m) => `<button class="btn sm ghost" style="margin:0 6px 6px 0" data-act="ir" data-tab="viagem" data-v="checklist">🧳 ${esc(m.titulo.replace('Mala · ', '').replace('Mala compartilhada', 'Dos dois'))} ${prontos(m.itens)}/${m.itens.length}</button>`).join('')}</div>` : ''}</div>`;
 }
 function abaDiario() {
   const l = [...S.diario].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
@@ -1133,16 +1166,24 @@ function salvarMares(fd, dia) {
   setDoc(dRef('roteiro', dia), { mareBaixa: b, mareAlta: a }, { merge: true }).catch(fail);
   return null;
 }
-function formCheck() {
-  return `<form data-form="check" autocomplete="off"><h2>Novo item</h2>
-    <label class="f">Item<input name="texto" required id="f-texto"></label>
-    <label class="f">Grupo<select name="grupo"><option value="mala">Mala</option><option value="antes_de_sair">Antes de sair</option><option value="documentos">Documentos</option><option value="outro" selected>Outros</option></select></label>
-    <div class="err" id="f-err"></div><button class="btn pri block" type="submit">Adicionar</button></form>`;
+function formCheck(c, pre) {
+  const x = c || { texto: '', grupo: pre && pre.tipo, dono: pre && pre.dono, prazo: '' };
+  const tipo = tipoCheck(x), dono = x.dono || (tipo === 'mala' ? meuEmail() : 'ambos');
+  const donos = membros().concat(membros().length > 1 ? ['ambos'] : []);
+  return `<form data-form="check" data-id="${esc((c && c.id) || '')}" autocomplete="off"><h2>${c ? 'Editar item' : 'Novo item'}</h2>
+    <label class="f">Item<input name="texto" required id="f-texto" value="${esc(x.texto)}"></label>
+    <div class="grid2"><label class="f">É<select name="tipo"><option value="tarefa" ${tipo === 'tarefa' ? 'selected' : ''}>Tarefa</option><option value="mala" ${tipo === 'mala' ? 'selected' : ''}>Item de mala</option></select></label>
+    <label class="f">De quem<select name="dono">${donos.map((e) => `<option value="${esc(e)}" ${dono === e ? 'selected' : ''}>${esc(nomeDe(e))}</option>`).join('')}</select></label></div>
+    <label class="f">Prazo (opcional, para tarefas)<input type="date" name="prazo" value="${esc(x.prazo || '')}"></label>
+    <div class="err" id="f-err"></div><button class="btn pri block" type="submit">Salvar</button>
+    ${c ? `<button class="btn bad block mt" type="button" data-act="delCheck" data-id="${esc(c.id)}">Excluir</button>` : ''}</form>`;
 }
-function salvarCheck(fd) {
+function salvarCheck(fd, id) {
   const texto = String(fd.get('texto')).trim();
   if (!texto) return 'Escreva o item.';
-  setDoc(dRef('checklist'), { texto, grupo: fd.get('grupo'), feito: false, feitoPor: null }).catch(fail);
+  const dados = { texto, grupo: fd.get('tipo') === 'mala' ? 'mala' : 'tarefa', dono: fd.get('dono') || 'ambos', prazo: fd.get('prazo') || null };
+  if (!id) Object.assign(dados, { feito: false, feitoPor: null });
+  setDoc(dRef('checklist', id), dados, { merge: true }).catch(fail);
   return null;
 }
 function formNota(dia) {
@@ -1160,13 +1201,32 @@ function salvarNota(fd, dia) {
   setDoc(dRef('diario', 'dia-' + dia), dados, { merge: true }).catch(fail);
   return null;
 }
+function sugestoesPre() {
+  const v = viagem(), ms = membros(), out = [];
+  const T = (texto, dias) => out.push({ texto, grupo: 'tarefa', dono: 'ambos', prazo: somaDias(v.dataInicio, dias) });
+  T('Resolver a passagem: confirmar com a Azul ou comprar direto no site', -30);
+  T('Confirmar o transfer Recife → Porto (empresa avaliada ou Uber/99)', -21);
+  T('Avisar o banco/cartão sobre a viagem', -14);
+  T('Cadastrar as marés no plano do dia (tábua da Marinha)', -7);
+  T('Salvar as instruções do self check-in no app do Airbnb', -3);
+  T('Carregar o powerbank e baixar mapas offline', -2);
+  T('Fazer o check-in online dos voos', -1);
+  T('Baixar os cartões de embarque', -1);
+  const pessoal = ['Roupas leves', 'Roupa de banho', 'Óculos de sol', 'Chapéu/boné', 'Sapatilha para recifes', 'Chinelo', 'Carregador do celular', 'Remédios pessoais', 'RG ou CNH'];
+  ms.forEach((e) => pessoal.forEach((t) => out.push({ texto: t, grupo: 'mala', dono: e, prazo: null })));
+  ['Protetor solar FPS alto', 'Repelente', 'Capa estanque para celular', 'Carregador do MacBook', 'Powerbank', 'Toalha de praia']
+    .forEach((t) => out.push({ texto: t, grupo: 'mala', dono: 'ambos', prazo: null }));
+  return out;
+}
 function checkSugestoes() {
-  const L = { mala: ['protetor solar FPS alto', 'repelente', 'óculos de sol', 'chapéu/boné', 'roupa de banho', 'sapatilha para recifes', 'capa estanque para celular'],
-    antes_de_sair: ['carregador do MacBook', 'carregador do iPhone', 'powerbank', 'fazer check-in online', 'baixar cartões de embarque', 'conferir tábua de marés'],
-    documentos: ['RG ou CNH dos dois'] };
+  const chave = (c) => tipoCheck(c) + '|' + donoCheck(c) + '|' + String(c.texto).trim().toLowerCase();
+  const tem = new Set(S.checklist.map(chave));
+  const novos = sugestoesPre().filter((c) => !tem.has(chave(c)));
+  if (!novos.length) return toast('Todos os itens sugeridos já estão na lista.');
   const b = writeBatch(db);
-  for (const [grupo, itens] of Object.entries(L)) for (const texto of itens) b.set(dRef('checklist'), { texto, grupo, feito: false, feitoPor: null });
+  novos.forEach((c) => b.set(dRef('checklist'), { ...c, feito: false, feitoPor: null }));
   b.commit().catch(fail);
+  toast(`${novos.length} itens adicionados`);
 }
 
 /* ---------- Dados iniciais: Porto de Galinhas ---------- */
@@ -1229,9 +1289,10 @@ const ACT = {
   editBloco: (d) => openSheet(formBloco(d.v, Number(d.i))),
   delBloco: (d) => { const x = achar(S.roteiro, d.v); if (x && confirm('Excluir este item?')) { setDoc(dRef('roteiro', d.v), { blocos: x.blocos.filter((_, i) => i !== Number(d.i)) }, { merge: true }).catch(fail); closeSheet(); } },
   mares: (d) => openSheet(formMares(d.v)),
-  novoCheck: () => { openSheet(formCheck()); setTimeout(() => { const i = $('f-texto'); if (i) i.focus(); }, 60); },
-  toggleCheck: (d) => { const c = achar(S.checklist, d.id); if (c) setDoc(dRef('checklist', d.id), { feito: !c.feito, feitoPor: c.feito ? null : meuEmail() }, { merge: true }).catch(fail); },
-  delCheck: (d) => deleteDoc(dRef('checklist', d.id)).catch(fail),
+  novoCheck: (d) => { openSheet(formCheck(null, { tipo: d.tipo, dono: d.dono })); setTimeout(() => { const i = $('f-texto'); if (i) i.focus(); }, 60); },
+  toggleCheck: (d) => { const c = achar(S.checklist, d.id); if (c) setDoc(dRef('checklist', d.id), { feito: !c.feito, feitoPor: c.feito ? null : meuEmail(), feitoEm: c.feito ? null : serverTimestamp() }, { merge: true }).catch(fail); },
+  editCheck: (d) => openSheet(formCheck(achar(S.checklist, d.id))),
+  delCheck: (d) => { if (confirm('Excluir este item?')) { deleteDoc(dRef('checklist', d.id)).catch(fail); closeSheet(); } },
   checkSugestoes,
   notaDia: (d) => { openSheet(formNota(d.v)); setTimeout(() => { const i = $('f-texto'); if (i) i.focus(); }, 60); },
   copiarDiario: () => copiarTexto(diarioMd(), 'Diário copiado'),
@@ -1318,7 +1379,7 @@ document.addEventListener('submit', (e) => {
       case 'viagem': erro = salvarViagem(fd, id); break;
       case 'bloco': erro = salvarBloco(fd, id, form.dataset.i); break;
       case 'mares': erro = salvarMares(fd, id); break;
-      case 'check': erro = salvarCheck(fd); break;
+      case 'check': erro = salvarCheck(fd, id); break;
       case 'nota': erro = salvarNota(fd, id); break;
       case 'prompt': erro = window.__prompt(fd); break;
     }
