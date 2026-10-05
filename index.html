@@ -472,7 +472,7 @@ const S = {
   viagens: null,   // null = ainda não carregou
   viagemId: null,
   reservas: [], gastos: [], contatos: [], roteiro: [], checklist: [], diario: [],
-  tab: 'hoje', sub: null, dia: null,
+  tab: 'hoje', sub: null, dia: null, malaSel: null,
   fGasto: { tipo: 'realizado', cat: '', pessoa: '' },
   revelados: {},
   online: navigator.onLine,
@@ -726,6 +726,8 @@ function abaHoje() {
       <span class="hr num">${esc(e.hora)}</span><span class="grow"><span>${e.emoji}</span> ${esc(e.titulo)}${e.notas ? `<br><span class="muted small">${esc(e.notas)}</span>` : ''}</span></button>`).join('')
       : '<div class="muted small mt">Nada planejado. Toque em “+ Item”.</div>'}
     <div class="actions"><button class="btn sm ghost" data-act="mares" data-v="${dia}">🌊 Marés do dia</button></div></div>`;
+
+  html += cardTarefasDoDia(dia);
 
   // gastos do dia
   html += `<div class="card"><div class="row between"><h3 style="margin:0">Gastos do dia</h3><b class="num">${brl(totDia)}</b></div>
@@ -1008,60 +1010,62 @@ function abaViagem() {
   if (S.sub === 'contatos') return voltar + abaContatos();
   if (S.sub === 'checklist') return voltar + abaChecklist();
   if (S.sub === 'diario') return voltar + abaDiario();
-  const pend = S.checklist.filter((c) => !c.feito).length;
+  const pend = S.checklist.filter((c) => tipoCheck(c) === 'mala' && !c.feito).length;
   const itens = [['reservas', '🎫', 'Reservas', `${S.reservas.length}`], ['contatos', '📞', 'Contatos', `${S.contatos.length}`],
-    ['checklist', '🧳', 'Pré-viagem', pend ? `${pend} faltam` : ''], ['diario', '📓', 'Diário', `${S.diario.length}`], ['config', '⚙️', 'Configurações', '']];
+    ['checklist', '🧳', 'Pré-viagem (malas)', pend ? `${pend} faltam` : ''], ['diario', '📓', 'Diário', `${S.diario.length}`], ['config', '⚙️', 'Configurações', '']];
   return `<div class="top"><h1>Viagem</h1></div><div class="menu">
     ${itens.map(([k, i, l, c]) => `<button class="item" data-act="sub" data-v="${k}"><span class="ico">${i}</span>${l}<span class="chev">${c} ›</span></button>`).join('')}</div>`;
 }
-/* ---------- Pré-viagem: tarefas + malas (visíveis para os dois) ---------- */
+/* ---------- Tarefas do dia e Pré-viagem (malas) ---------- */
 const tipoCheck = (c) => (c.grupo === 'mala' ? 'mala' : 'tarefa'); // itens antigos (antes_de_sair, documentos…) viram tarefas
 const donoCheck = (c) => c.dono || 'ambos';
-function somaDias(dia, n) { const x = new Date(dia + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
-const ordemCheck = (a, b) => (a.feito - b.feito) || (a.prazo || '9999').localeCompare(b.prazo || '9999') || (a.texto || '').localeCompare(b.texto || '');
-function linhaCheck(c, mostrarDono) {
-  const h = hoje(), meta = [];
-  if (c.prazo) {
-    const d = diasEntre(h, c.prazo);
-    meta.push(`<span class="badge ${c.feito ? 'b-muted' : d < 0 ? 'b-bad' : d <= 3 ? 'b-warn' : 'b-muted'}">${d < 0 && !c.feito ? 'atrasado · ' : 'até '}${fmtDia(c.prazo)}</span>`);
-  }
-  if (mostrarDono) meta.push(`<span class="badge b-muted">${esc(nomeDe(donoCheck(c)))}</span>`);
-  if (c.feito && c.feitoPor) meta.push(`<span class="muted small">✓ ${esc(nomeDe(c.feitoPor))}</span>`);
-  return `<div class="row"><label class="check" style="padding-right:0"><input type="checkbox" data-act="toggleCheck" data-id="${esc(c.id)}" ${c.feito ? 'checked' : ''}></label>
-    <button class="chk-txt grow" data-act="editCheck" data-id="${esc(c.id)}"><span style="${c.feito ? 'text-decoration:line-through;opacity:.55' : ''}">${esc(c.texto)}</span>${meta.length ? `<div class="mt0">${meta.join(' ')}</div>` : ''}</button></div>`;
-}
-function secoesPre() {
-  const ms = membros();
-  const lista = [{ chave: 'tarefa', titulo: 'Tarefas', tipo: 'tarefa', dono: 'ambos', itens: S.checklist.filter((c) => tipoCheck(c) === 'tarefa').sort(ordemCheck) }];
-  for (const e of ms.concat(ms.length > 1 ? ['ambos'] : [])) {
-    lista.push({ chave: 'mala-' + e, titulo: e === 'ambos' ? 'Mala compartilhada' : 'Mala · ' + nomeDe(e), tipo: 'mala', dono: e,
-      itens: S.checklist.filter((c) => tipoCheck(c) === 'mala' && donoCheck(c) === e).sort(ordemCheck) });
-  }
-  return lista;
-}
+const diaCheck = (c, v) => c.dia || c.prazo || v.dataInicio; // tarefa sem dia cai no 1º dia da viagem
 const prontos = (l) => l.filter((c) => c.feito).length;
-function abaChecklist() {
-  const secoes = secoesPre(), todos = S.checklist.length, ok = prontos(S.checklist);
-  let html = `<div class="top"><h1>Pré-viagem</h1><button class="btn sm pri" data-act="novoCheck" data-tipo="tarefa" data-dono="ambos">+ Item</button></div>`;
-  if (!todos) return html + '<div class="card center"><p class="muted">Nada aqui ainda.</p><button class="btn pri" data-act="checkSugestoes">Adicionar itens sugeridos</button></div>';
-  html += `<div class="card"><div class="row between"><b>${ok} de ${todos} prontos</b><span class="muted small">${todos - ok} faltam</span></div><div class="hbar"><i style="width:${(ok / todos * 100).toFixed(0)}%"></i></div></div>`;
-  for (const sc of secoes) {
-    html += `<div class="day"><span>${esc(sc.titulo)}</span><span>${prontos(sc.itens)}/${sc.itens.length}</span></div><div class="card" style="padding:4px 14px">
-      ${sc.itens.map((c) => linhaCheck(c, sc.tipo === 'tarefa')).join('') || '<div class="muted small" style="padding:10px 0">Nenhum item.</div>'}
-      <div style="padding:6px 0 10px"><button class="btn sm ghost" data-act="novoCheck" data-tipo="${sc.tipo}" data-dono="${esc(sc.dono)}">+ Item</button></div></div>`;
-  }
-  return html + '<div class="center mt"><button class="btn sm ghost" data-act="checkSugestoes">Adicionar itens sugeridos que faltam</button></div>';
+const CATS_MALA = [['roupas', '👕', 'Roupas'], ['calcados', '👟', 'Calçados e acessórios'], ['higiene', '🧴', 'Higiene'], ['saude', '💊', 'Saúde'],
+  ['eletronicos', '🔌', 'Eletrônicos'], ['documentos', '🪪', 'Documentos e dinheiro'], ['praia', '🏖️', 'Praia'], ['trabalho', '💻', 'Trabalho'], ['outros', '📦', 'Outros']];
+const linhaCheck = (c, badge) => `<div class="row"><label class="check" style="padding-right:0"><input type="checkbox" data-act="toggleCheck" data-id="${esc(c.id)}" ${c.feito ? 'checked' : ''}></label>
+  <button class="chk-txt grow" data-act="editCheck" data-id="${esc(c.id)}"><span style="${c.feito ? 'text-decoration:line-through;opacity:.55' : ''}">${esc(c.texto)}</span>${badge ? ` <span class="badge b-muted">${esc(badge)}</span>` : ''}</button></div>`;
+const donosMala = () => membros().concat(membros().length > 1 ? ['ambos'] : []);
+const nomeMala = (e) => (e === 'ambos' ? 'Dos dois' : nomeDe(e));
+
+function cardTarefasDoDia(dia) {
+  const v = viagem();
+  const l = S.checklist.filter((c) => tipoCheck(c) === 'tarefa' && diaCheck(c, v) === dia).sort((a, b) => (a.feito - b.feito) || (a.texto || '').localeCompare(b.texto || ''));
+  return `<div class="card"><div class="row between"><h3 style="margin:0">Tarefas do dia${l.length ? ` · ${prontos(l)}/${l.length}` : ''}</h3>
+    <button class="btn sm" data-act="novoCheck" data-tipo="tarefa" data-dono="ambos" data-dia="${esc(dia)}">+ Tarefa</button></div>
+    ${l.map((c) => linhaCheck(c, donoCheck(c) === 'ambos' ? '' : nomeDe(donoCheck(c)))).join('') || '<div class="muted small mt">Nenhuma tarefa para este dia.</div>'}</div>`;
 }
+
+function abaChecklist() {
+  const donos = donosMala();
+  const sel = donos.includes(S.malaSel) ? S.malaSel : donos.includes(meuEmail()) ? meuEmail() : donos[0];
+  const malas = S.checklist.filter((c) => tipoCheck(c) === 'mala');
+  const da = (e) => malas.filter((c) => donoCheck(c) === e);
+  const itens = da(sel), ok = prontos(itens);
+  let html = `<div class="top"><h1>Pré-viagem</h1><button class="btn sm pri" data-act="novoCheck" data-tipo="mala" data-dono="${esc(sel)}">+ Item</button></div>
+    <div class="seg">${donos.map((e) => `<button class="${e === sel ? 'on' : ''}" data-act="malaSel" data-v="${esc(e)}">${esc(nomeMala(e))}<br><span class="small">${prontos(da(e))}/${da(e).length}</span></button>`).join('')}</div>`;
+  if (!itens.length) {
+    return html + `<div class="card center"><div style="font-size:42px">🧳</div><p class="muted">A mala ${sel === 'ambos' ? 'dos dois' : 'de ' + esc(nomeDe(sel))} ainda está vazia.</p>
+      <button class="btn pri" data-act="checkSugestoes">Montar lista sugerida</button></div>`;
+  }
+  const pct = Math.round(ok / itens.length * 100);
+  html += `<div class="card"><div class="row between"><b>${ok} de ${itens.length} na mala</b><span class="muted small">${pct}%</span></div><div class="hbar"><i style="width:${pct}%"></i></div></div>`;
+  for (const [k, emoji, nome] of CATS_MALA) {
+    const l = itens.filter((c) => (c.categoria || 'outros') === k).sort((a, b) => (a.feito - b.feito) || (a.texto || '').localeCompare(b.texto || ''));
+    if (!l.length) continue;
+    html += `<div class="day"><span>${emoji} ${nome}</span><span>${prontos(l)}/${l.length}</span></div><div class="card" style="padding:2px 14px">${l.map((c) => linhaCheck(c)).join('')}</div>`;
+  }
+  return html + '<div class="center mt"><button class="btn sm ghost" data-act="checkSugestoes">Adicionar sugestões que faltam</button></div>';
+}
+
 function cardPreViagem() {
-  const h = hoje(), v = viagem(), pend = S.checklist.filter((c) => !c.feito);
-  if (!S.checklist.length) return `<div class="card"><h3>Pré-viagem</h3><div class="muted small">Tarefas e malas dos dois, num lugar só.</div>
-    <div class="actions"><button class="btn sm pri" data-act="checkSugestoes">Adicionar itens sugeridos</button></div></div>`;
-  const tar = pend.filter((c) => tipoCheck(c) === 'tarefa').sort(ordemCheck).slice(0, 4);
-  const malas = secoesPre().filter((s_) => s_.tipo === 'mala' && s_.itens.length);
-  return `<div class="card"><div class="row between"><h3 style="margin:0">Pré-viagem · ${pend.length} ${pend.length === 1 ? 'pendente' : 'pendentes'}</h3>
-    <button class="btn sm" data-act="ir" data-tab="viagem" data-v="checklist">Abrir</button></div>
-    ${tar.map((c) => linhaCheck(c, true)).join('') || '<div class="muted small mt">Nenhuma tarefa pendente 🎉</div>'}
-    ${malas.length ? `<div class="mt">${malas.map((m) => `<button class="btn sm ghost" style="margin:0 6px 6px 0" data-act="ir" data-tab="viagem" data-v="checklist">🧳 ${esc(m.titulo.replace('Mala · ', '').replace('Mala compartilhada', 'Dos dois'))} ${prontos(m.itens)}/${m.itens.length}</button>`).join('')}</div>` : ''}</div>`;
+  const malas = S.checklist.filter((c) => tipoCheck(c) === 'mala');
+  if (!malas.length) return `<div class="card"><h3>Pré-viagem · malas</h3><div class="muted small">Uma lista de mala para cada um e uma para os dois.</div>
+    <div class="actions"><button class="btn sm pri" data-act="checkSugestoes">Montar lista sugerida</button></div></div>`;
+  const ok = prontos(malas), pct = Math.round(ok / malas.length * 100);
+  return `<div class="card"><div class="row between"><h3 style="margin:0">Pré-viagem · malas</h3><b class="num">${pct}%</b></div>
+    <div class="hbar"><i style="width:${pct}%"></i></div>
+    <div class="mt">${donosMala().map((e) => { const l = malas.filter((c) => donoCheck(c) === e); return `<button class="btn sm ghost" style="margin:0 6px 6px 0" data-act="irMala" data-v="${esc(e)}">🧳 ${esc(nomeMala(e))} ${prontos(l)}/${l.length}</button>`; }).join('')}</div></div>`;
 }
 function abaDiario() {
   const l = [...S.diario].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
@@ -1167,21 +1171,28 @@ function salvarMares(fd, dia) {
   return null;
 }
 function formCheck(c, pre) {
-  const x = c || { texto: '', grupo: pre && pre.tipo, dono: pre && pre.dono, prazo: '' };
-  const tipo = tipoCheck(x), dono = x.dono || (tipo === 'mala' ? meuEmail() : 'ambos');
-  const donos = membros().concat(membros().length > 1 ? ['ambos'] : []);
-  return `<form data-form="check" data-id="${esc((c && c.id) || '')}" autocomplete="off"><h2>${c ? 'Editar item' : 'Novo item'}</h2>
-    <label class="f">Item<input name="texto" required id="f-texto" value="${esc(x.texto)}"></label>
-    <div class="grid2"><label class="f">É<select name="tipo"><option value="tarefa" ${tipo === 'tarefa' ? 'selected' : ''}>Tarefa</option><option value="mala" ${tipo === 'mala' ? 'selected' : ''}>Item de mala</option></select></label>
-    <label class="f">De quem<select name="dono">${donos.map((e) => `<option value="${esc(e)}" ${dono === e ? 'selected' : ''}>${esc(nomeDe(e))}</option>`).join('')}</select></label></div>
-    <label class="f">Prazo (opcional, para tarefas)<input type="date" name="prazo" value="${esc(x.prazo || '')}"></label>
+  pre = pre || {};
+  const tipo = c ? tipoCheck(c) : (pre.tipo || 'tarefa');
+  const x = c || { texto: '', dono: pre.dono, dia: pre.dia, categoria: pre.cat };
+  const donos = donosMala();
+  const dono = x.dono || (tipo === 'mala' ? meuEmail() : 'ambos');
+  const optDonos = donos.map((e) => `<option value="${esc(e)}" ${dono === e ? 'selected' : ''}>${esc(e === 'ambos' ? 'Os dois' : nomeDe(e))}</option>`).join('');
+  const extra = tipo === 'mala'
+    ? `<label class="f">Categoria<select name="categoria">${CATS_MALA.map(([k, e, n]) => `<option value="${k}" ${(x.categoria || 'outros') === k ? 'selected' : ''}>${e} ${n}</option>`).join('')}</select></label>`
+    : `<label class="f">Dia<input type="date" name="dia" value="${esc(x.dia || x.prazo || diaAtivo(viagem()))}" required></label>`;
+  return `<form data-form="check" data-id="${esc((c && c.id) || '')}" autocomplete="off"><input type="hidden" name="tipo" value="${tipo}">
+    <h2>${c ? 'Editar' : 'Novo'} ${tipo === 'mala' ? 'item de mala' : 'tarefa'}</h2>
+    <label class="f">${tipo === 'mala' ? 'Item' : 'O que fazer'}<input name="texto" required id="f-texto" value="${esc(x.texto)}"></label>
+    <div class="grid2"><label class="f">${tipo === 'mala' ? 'Mala de' : 'Quem faz'}<select name="dono">${optDonos}</select></label>${extra}</div>
     <div class="err" id="f-err"></div><button class="btn pri block" type="submit">Salvar</button>
     ${c ? `<button class="btn bad block mt" type="button" data-act="delCheck" data-id="${esc(c.id)}">Excluir</button>` : ''}</form>`;
 }
 function salvarCheck(fd, id) {
   const texto = String(fd.get('texto')).trim();
   if (!texto) return 'Escreva o item.';
-  const dados = { texto, grupo: fd.get('tipo') === 'mala' ? 'mala' : 'tarefa', dono: fd.get('dono') || 'ambos', prazo: fd.get('prazo') || null };
+  const mala = fd.get('tipo') === 'mala';
+  const dados = { texto, grupo: mala ? 'mala' : 'tarefa', dono: fd.get('dono') || 'ambos' };
+  if (mala) dados.categoria = fd.get('categoria') || 'outros'; else dados.dia = fd.get('dia');
   if (!id) Object.assign(dados, { feito: false, feitoPor: null });
   setDoc(dRef('checklist', id), dados, { merge: true }).catch(fail);
   return null;
@@ -1201,32 +1212,40 @@ function salvarNota(fd, dia) {
   setDoc(dRef('diario', 'dia-' + dia), dados, { merge: true }).catch(fail);
   return null;
 }
+const LISTA_PESSOAL = {
+  roupas: ['Camisetas/regatas (5)', 'Bermudas/shorts (3)', 'Roupa de banho (2)', 'Roupa leve para a noite', 'Roupa de treino', 'Casaquinho leve (vento à noite)', 'Roupa íntima', 'Meias', 'Roupa de dormir'],
+  calcados: ['Chinelo', 'Sapatilha para recifes', 'Tênis leve', 'Óculos de sol', 'Chapéu/boné'],
+  higiene: ['Escova e pasta de dente', 'Desodorante', 'Shampoo e condicionador', 'Hidratante pós-sol', 'Protetor labial com FPS', 'Itens de cabelo e barba'],
+  saude: ['Remédios de uso pessoal', 'Analgésico', 'Antialérgico', 'Curativos'],
+  eletronicos: ['Carregador do celular', 'Fone de ouvido', 'Cabo extra'],
+  documentos: ['RG ou CNH', 'Cartões de débito e crédito', 'Dinheiro em espécie', 'Cartões de embarque salvos offline'],
+};
+const LISTA_DOS_DOIS = {
+  praia: ['Protetor solar FPS alto', 'Repelente', 'Toalhas de praia', 'Capa estanque para celular', 'Bolsa impermeável', 'Garrafa térmica'],
+  eletronicos: ['Carregador do MacBook', 'Powerbank', 'Extensão/benjamim'],
+  trabalho: ['MacBook', 'Fone com microfone para reuniões'],
+  outros: ['Sacolas plásticas', 'Sacola para roupa suja', 'Kit básico de remédios'],
+};
 function sugestoesPre() {
-  const v = viagem(), ms = membros(), out = [];
-  const T = (texto, dias) => out.push({ texto, grupo: 'tarefa', dono: 'ambos', prazo: somaDias(v.dataInicio, dias) });
-  T('Resolver a passagem: confirmar com a Azul ou comprar direto no site', -30);
-  T('Confirmar o transfer Recife → Porto (empresa avaliada ou Uber/99)', -21);
-  T('Avisar o banco/cartão sobre a viagem', -14);
-  T('Cadastrar as marés no plano do dia (tábua da Marinha)', -7);
-  T('Salvar as instruções do self check-in no app do Airbnb', -3);
-  T('Carregar o powerbank e baixar mapas offline', -2);
-  T('Fazer o check-in online dos voos', -1);
-  T('Baixar os cartões de embarque', -1);
-  const pessoal = ['Roupas leves', 'Roupa de banho', 'Óculos de sol', 'Chapéu/boné', 'Sapatilha para recifes', 'Chinelo', 'Carregador do celular', 'Remédios pessoais', 'RG ou CNH'];
-  ms.forEach((e) => pessoal.forEach((t) => out.push({ texto: t, grupo: 'mala', dono: e, prazo: null })));
-  ['Protetor solar FPS alto', 'Repelente', 'Capa estanque para celular', 'Carregador do MacBook', 'Powerbank', 'Toalha de praia']
-    .forEach((t) => out.push({ texto: t, grupo: 'mala', dono: 'ambos', prazo: null }));
+  const out = [];
+  for (const e of membros()) for (const [categoria, l] of Object.entries(LISTA_PESSOAL)) l.forEach((texto) => out.push({ texto, grupo: 'mala', dono: e, categoria }));
+  for (const [categoria, l] of Object.entries(LISTA_DOS_DOIS)) l.forEach((texto) => out.push({ texto, grupo: 'mala', dono: 'ambos', categoria }));
   return out;
 }
+const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
 function checkSugestoes() {
-  const chave = (c) => tipoCheck(c) + '|' + donoCheck(c) + '|' + String(c.texto).trim().toLowerCase();
-  const tem = new Set(S.checklist.map(chave));
-  const novos = sugestoesPre().filter((c) => !tem.has(chave(c)));
-  if (!novos.length) return toast('Todos os itens sugeridos já estão na lista.');
+  const chave = (c) => donoCheck(c) + '|' + norm(c.texto);
+  const tem = new Map(S.checklist.filter((c) => tipoCheck(c) === 'mala').map((c) => [chave(c), c]));
   const b = writeBatch(db);
-  novos.forEach((c) => b.set(dRef('checklist'), { ...c, feito: false, feitoPor: null }));
+  let novos = 0, ajustados = 0;
+  for (const c of sugestoesPre()) {
+    const ex = tem.get(chave(c));
+    if (!ex) { b.set(dRef('checklist'), { ...c, feito: false, feitoPor: null }); novos++; }
+    else if (!ex.categoria) { b.set(dRef('checklist', ex.id), { categoria: c.categoria }, { merge: true }); ajustados++; }
+  }
+  if (!novos && !ajustados) return toast('Todas as sugestões já estão nas malas.');
   b.commit().catch(fail);
-  toast(`${novos.length} itens adicionados`);
+  toast(`${novos} itens adicionados${ajustados ? `, ${ajustados} arrumados` : ''}`);
 }
 
 /* ---------- Dados iniciais: Porto de Galinhas ---------- */
@@ -1289,7 +1308,9 @@ const ACT = {
   editBloco: (d) => openSheet(formBloco(d.v, Number(d.i))),
   delBloco: (d) => { const x = achar(S.roteiro, d.v); if (x && confirm('Excluir este item?')) { setDoc(dRef('roteiro', d.v), { blocos: x.blocos.filter((_, i) => i !== Number(d.i)) }, { merge: true }).catch(fail); closeSheet(); } },
   mares: (d) => openSheet(formMares(d.v)),
-  novoCheck: (d) => { openSheet(formCheck(null, { tipo: d.tipo, dono: d.dono })); setTimeout(() => { const i = $('f-texto'); if (i) i.focus(); }, 60); },
+  malaSel: (d) => { S.malaSel = d.v; render(); },
+  irMala: (d) => { S.malaSel = d.v; S.tab = 'viagem'; S.sub = 'checklist'; render(); window.scrollTo(0, 0); },
+  novoCheck: (d) => { openSheet(formCheck(null, { tipo: d.tipo, dono: d.dono, dia: d.dia })); setTimeout(() => { const i = $('f-texto'); if (i) i.focus(); }, 60); },
   toggleCheck: (d) => { const c = achar(S.checklist, d.id); if (c) setDoc(dRef('checklist', d.id), { feito: !c.feito, feitoPor: c.feito ? null : meuEmail(), feitoEm: c.feito ? null : serverTimestamp() }, { merge: true }).catch(fail); },
   editCheck: (d) => openSheet(formCheck(achar(S.checklist, d.id))),
   delCheck: (d) => { if (confirm('Excluir este item?')) { deleteDoc(dRef('checklist', d.id)).catch(fail); closeSheet(); } },
