@@ -158,6 +158,7 @@ nav button.on{color:var(--acc)}
 .plan{display:flex;gap:12px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:11px 0;margin-top:2px}
 .plan:first-of-type{margin-top:8px}
 .plan .hr{width:48px;color:var(--acc);font-weight:700}
+.wx{display:flex;align-items:center;gap:12px}.wxi{font-size:38px;line-height:1}
 .check{display:flex;align-items:center;gap:12px;padding:10px 0;font-size:16px}
 .xdel{background:none;border:0;color:var(--tx2);font-size:18px;width:40px;height:40px;border-radius:10px;flex:none}
 .xdel:active{background:var(--s2);color:var(--bad)}
@@ -353,6 +354,26 @@ function prazosProximos(reservas, agora, dias = 7) {
     .sort((x, y) => x.quando - y.quando);
 }
 
+/* ---- tempo e maré ---- */
+function somaDias(dia, n) { const x = new Date(dia + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+const WMO = { 0: ['☀️', 'Céu limpo'], 1: ['🌤️', 'Poucas nuvens'], 2: ['⛅', 'Parcialmente nublado'], 3: ['☁️', 'Nublado'], 45: ['🌫️', 'Neblina'], 48: ['🌫️', 'Neblina'],
+  51: ['🌦️', 'Garoa fraca'], 53: ['🌦️', 'Garoa'], 55: ['🌦️', 'Garoa forte'], 56: ['🌦️', 'Garoa'], 57: ['🌦️', 'Garoa'],
+  61: ['🌧️', 'Chuva fraca'], 63: ['🌧️', 'Chuva'], 65: ['🌧️', 'Chuva forte'], 66: ['🌧️', 'Chuva'], 67: ['🌧️', 'Chuva forte'],
+  80: ['🌦️', 'Pancadas fracas'], 81: ['🌧️', 'Pancadas de chuva'], 82: ['⛈️', 'Pancadas fortes'], 95: ['⛈️', 'Trovoadas'], 96: ['⛈️', 'Trovoadas'], 99: ['⛈️', 'Trovoadas'] };
+function wmoInfo(c) { return WMO[c] || ['🌡️', 'Tempo variável']; }
+/** Máximos e mínimos locais da altura do mar (série horária) que caem em `dia`. Estimativa de modelo, não a tábua oficial. */
+function extremosMare(tempos, alturas, dia) {
+  const baixas = [], altas = [];
+  for (let i = 1; i < alturas.length - 1; i++) {
+    const a = alturas[i - 1], b = alturas[i], c = alturas[i + 1];
+    if (a == null || b == null || c == null || tempos[i].slice(0, 10) !== dia) continue;
+    const hora = tempos[i].slice(11, 16);
+    if (b < a && b <= c) baixas.push(hora);
+    else if (b > a && b >= c) altas.push(hora);
+  }
+  return { baixas, altas };
+}
+
 /* ---- código mascarado ---- */
 function mascarar(codigo) {
   const c = String(codigo || '');
@@ -436,6 +457,14 @@ function rotaTests() {
   ], agora);
   eq('prazos: só 1 nos próximos 7 dias', pr.length, 1);
   eq('prazos: dias restantes', pr[0] && pr[0].dias, 4);
+  eq('somaDias', somaDias('2026-11-11', -15), '2026-10-27');
+  eq('wmo 0', wmoInfo(0)[1], 'Céu limpo');
+  eq('wmo desconhecido', wmoInfo(1234)[0], '🌡️');
+  const tt = [], hh = [];
+  for (let i = 0; i < 72; i++) { tt.push(somaDias('2026-11-11', Math.floor(i / 24)) + 'T' + String(i % 24).padStart(2, '0') + ':00'); hh.push(Math.sin(2 * Math.PI * i / 12.4)); }
+  const ex = extremosMare(tt, hh, '2026-11-12');
+  eq('maré: ~2 baixas e ~2 altas por dia', [ex.baixas.length, ex.altas.length], [2, 2]);
+  eq('maré: dia sem dados', extremosMare(tt, hh, '2027-01-01'), { baixas: [], altas: [] });
   eq('datetime-local round trip', msToLocalInput(localInputToMs('2026-11-11T15:00')), '2026-11-11T15:00');
   const falhas = out.filter((t) => !t.ok);
   if (typeof console !== 'undefined') {
@@ -564,7 +593,7 @@ function ouvirViagens() {
 }
 function abrirViagem(id) {
   unsubSub.forEach((f) => f()); unsubSub = [];
-  S.viagemId = id; S.reservas = []; S.gastos = []; S.contatos = []; S.tab = 'hoje'; S.sub = null; S.dia = null; S.roteiro = []; S.checklist = []; S.diario = []; S.compras = [];
+  S.viagemId = id; S.reservas = []; S.gastos = []; S.contatos = []; S.tab = 'hoje'; S.sub = null; S.dia = null; S.clima = null; S.roteiro = []; S.checklist = []; S.diario = []; S.compras = [];
   lsSet('rota-viagem', id);
   // Logo após criar a viagem, o servidor pode negar a leitura das subcoleções (a regra lê o doc da viagem,
   // que ainda não chegou). Nesse caso o listener morre: reassina após uma pausa em vez de mostrar erro.
@@ -588,6 +617,7 @@ function abrirViagem(id) {
     return () => { morto = true; clearTimeout(timer); if (un) un(); };
   };
   unsubSub = ['reservas', 'gastos', 'contatos', 'roteiro', 'checklist', 'diario', 'compras'].map((n) => sub(n, n));
+  S.clima = null; carregarClima();
   render();
 }
 const colRef = (nome) => collection(db, 'viagens', S.viagemId, nome);
@@ -662,6 +692,64 @@ function telaPrincipal() {
     <nav><div class="in">${nav.map(([k, i, l]) => `<button class="${S.tab === k ? 'on' : ''}" data-act="tab" data-tab="${k}"><span class="ic">${i}</span>${l}</button>`).join('')}</div></nav>`;
 }
 
+/* ---------- Tempo e maré (Open-Meteo, sem chave; cache local para uso offline) ---------- */
+const lsJson = (k) => { try { return JSON.parse(lsGet(k)); } catch (_) { return null; } };
+let climaBuscando = false;
+async function carregarClima() {
+  const v = viagem();
+  if (!v || !v.destino || climaBuscando) return;
+  const chave = 'rota-clima:' + v.id + ':' + v.destino;
+  if (!S.clima) S.clima = lsJson(chave);
+  if (S.clima && Date.now() - S.clima.em < 3 * 3600 * 1000) return render();
+  if (!navigator.onLine) return render();
+  climaBuscando = true;
+  try {
+    let geo = S.clima && S.clima.geo;
+    if (!geo) {
+      const nome = v.destino.split(',')[0].trim();
+      const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(nome)}&count=1&language=pt&country=BR`)).json();
+      if (!g.results || !g.results.length) throw new Error('destino não encontrado');
+      geo = { lat: g.results[0].latitude, lon: g.results[0].longitude };
+    }
+    const q = `latitude=${geo.lat}&longitude=${geo.lon}&timezone=America%2FRecife&forecast_days=16`;
+    const [f, m] = await Promise.all([
+      fetch(`https://api.open-meteo.com/v1/forecast?${q}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,uv_index_max`).then((r) => r.json()),
+      fetch(`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=sea_level_height_msl`).then((r) => r.json()).catch(() => null),
+    ]);
+    const diario = {};
+    (f.daily.time || []).forEach((d, i) => {
+      diario[d] = { code: f.daily.weather_code[i], tmax: f.daily.temperature_2m_max[i], tmin: f.daily.temperature_2m_min[i],
+        chuva: f.daily.precipitation_probability_max[i], vento: f.daily.wind_speed_10m_max[i], uv: f.daily.uv_index_max[i] };
+    });
+    S.clima = { geo, diario, mare: m && m.hourly ? { tempos: m.hourly.time, alturas: m.hourly.sea_level_height_msl } : (S.clima && S.clima.mare) || null, em: Date.now() };
+    lsSet(chave, JSON.stringify(S.clima));
+  } catch (e) { console.warn('clima', e); }
+  climaBuscando = false;
+  render();
+}
+function cardTempo(dia) {
+  const c = S.clima, h = hoje();
+  const d = c && c.diario && c.diario[dia];
+  let tempo;
+  if (d) {
+    const [emoji, desc] = wmoInfo(d.code);
+    tempo = `<div class="wx"><span class="wxi">${emoji}</span><div><b>${Math.round(d.tmin)}°–${Math.round(d.tmax)}°</b> · ${esc(desc)}<div class="muted small">🌧️ ${d.chuva ?? '–'}% · 💨 ${Math.round(d.vento)} km/h · UV ${Math.round(d.uv)}</div></div></div>`;
+  } else if (dia > somaDias(h, 15)) tempo = `<div class="muted small">Previsão disponível a partir de ${fmtDia(somaDias(dia, -15))}.</div>`;
+  else tempo = `<div class="muted small">${climaBuscando ? 'Carregando…' : 'Sem previsão no momento (sem conexão?).'}</div>`;
+
+  const rot = achar(S.roteiro, dia) || {};
+  const fmt = (arr) => arr.map((m) => (typeof m === 'string' ? m : m.hora + (m.alturaM != null ? ` (${m.alturaM}m)` : ''))).join(' · ');
+  let mare = '';
+  if ((rot.mareBaixa && rot.mareBaixa.length) || (rot.mareAlta && rot.mareAlta.length)) {
+    mare = `<div class="small">🌊 <b>Baixa</b> ${fmt(rot.mareBaixa || []) || '—'} &nbsp;|&nbsp; <b>Alta</b> ${fmt(rot.mareAlta || []) || '—'}</div><div class="muted small">Tábua cadastrada por vocês</div>`;
+  } else if (c && c.mare) {
+    const ex = extremosMare(c.mare.tempos, c.mare.alturas, dia);
+    if (ex.baixas.length || ex.altas.length) mare = `<div class="small">🌊 <b>Baixa</b> ~${ex.baixas.join(' · ') || '—'} &nbsp;|&nbsp; <b>Alta</b> ~${ex.altas.join(' · ') || '—'}</div><div class="muted small">Estimativa de modelo (±1 h). Confira na tábua da Marinha.</div>`;
+  }
+  if (!mare) mare = `<div class="muted small">🌊 Maré: sem estimativa para este dia ainda. Use “Marés do dia” para cadastrar a tábua.</div>`;
+  return `<div class="card"><h3>Tempo e maré</h3>${tempo}<div class="mt">${mare}</div></div>`;
+}
+
 /* ---------- Hoje ---------- */
 const dataDe = (ms) => msToLocalInput(ms).slice(0, 10);
 const horaDe = (ms) => msToLocalInput(ms).slice(11, 16);
@@ -718,12 +806,11 @@ function abaHoje() {
   // pré-viagem (só antes da viagem começar): vem primeiro, é o que importa agora
   if (pg.estado === 'antes') html += cardPreViagem();
 
+  html += cardTempo(dia);
+
   // plano do dia
   const ev = eventosDoDia(dia), rot = achar(S.roteiro, dia) || {};
-  const mare = (l, arr) => (arr && arr.length ? `${l} ${arr.map((m) => m.hora + (m.alturaM != null ? ` (${m.alturaM}m)` : '')).join(' · ')}` : '');
-  const mares = [mare('🌊 Baixa', rot.mareBaixa), mare('Alta', rot.mareAlta)].filter(Boolean).join('  |  ');
   html += `<div class="card"><div class="row between"><h3 style="margin:0">Plano do dia</h3><div><button class="btn sm" data-act="novoBloco" data-v="${dia}">+ Item</button></div></div>
-    ${mares ? `<div class="small mt">${esc(mares)}</div>` : ''}
     ${ev.length ? ev.map((e) => `<button class="plan" ${e.bloco != null ? `data-act="editBloco" data-v="${dia}" data-i="${e.bloco}"` : 'data-act="ir" data-tab="viagem" data-v="reservas"'}>
       <span class="hr num">${esc(e.hora)}</span><span class="grow"><span>${e.emoji}</span> ${esc(e.titulo)}${e.notas ? `<br><span class="muted small">${esc(e.notas)}</span>` : ''}</span></button>`).join('')
       : '<div class="muted small mt">Nada planejado. Toque em “+ Item”.</div>'}
@@ -1471,7 +1558,7 @@ document.addEventListener('pointerdown', startPress);
 ['pointerup', 'pointercancel', 'pointerleave', 'scroll'].forEach((ev) => document.addEventListener(ev, endPress, true));
 document.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-reveal]')) e.preventDefault(); });
 
-window.addEventListener('online', () => { S.online = true; render(); });
+window.addEventListener('online', () => { S.online = true; render(); carregarClima(); });
 window.addEventListener('offline', () => { S.online = false; render(); });
 
 /* ---------- Boot ---------- */
