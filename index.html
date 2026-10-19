@@ -158,6 +158,7 @@ nav button.on{color:var(--acc)}
 .plan{display:flex;gap:12px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:11px 0;margin-top:2px}
 .plan:first-of-type{margin-top:8px}
 .plan .hr{width:48px;color:var(--acc);font-weight:700}
+.clock{background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:9px 13px;margin-bottom:12px;font-size:15px}
 .wx{display:flex;align-items:center;gap:12px}.wxi{font-size:38px;line-height:1}
 .check{display:flex;align-items:center;gap:12px;padding:10px 0;font-size:16px}
 .xdel{background:none;border:0;color:var(--tx2);font-size:18px;width:40px;height:40px;border-radius:10px;flex:none}
@@ -217,7 +218,10 @@ details{margin-bottom:12px} summary{color:var(--tx2);padding:6px 0;font-size:14p
      ============================================================ -->
 <script id="puro">
 'use strict';
-const TZ = 'America/Recife';
+let TZ = 'America/Recife';          // fuso do destino da viagem aberta (setFuso)
+const TZ_BR = 'America/Sao_Paulo';  // horário de Brasília
+function fusoValido(z) { try { new Intl.DateTimeFormat('en', { timeZone: z }); return true; } catch (_) { return false; } }
+function setFuso(z) { TZ = z && fusoValido(z) ? z : 'America/Recife'; }
 const BLACKLIST_TELEFONES = [
   { numero: '556131420712', motivo: 'Falso atendimento Booking.com encontrado no Google' },
   { numero: '556135501608', motivo: 'Falso atendimento Booking.com encontrado no Google' },
@@ -276,20 +280,46 @@ function fmtDiaLongo(s) {
   const d = new Date(s + 'T12:00:00Z');
   return SEMANA[d.getUTCDay()] + ', ' + fmtDia(s);
 }
-function fmtDataHora(ms) {
-  if (ms == null) return '';
-  return new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(ms)).replace(',', '');
-}
-function msToLocalInput(ms) { // para <input type=datetime-local>
-  if (ms == null) return '';
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+function partesNoFuso(ms, tz) {
+  return Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
     .formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+}
+/** deslocamento (ms) do fuso `tz` em relação ao UTC no instante `ms` */
+function tzOffsetMs(tz, ms) {
+  const p = partesNoFuso(ms, tz);
+  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(ms / 1000) * 1000;
+}
+function fmtDataHora(ms, tz = TZ) {
+  if (ms == null) return '';
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(ms)).replace(',', '');
+}
+function msToLocalInput(ms, tz = TZ) { // para <input type=datetime-local>, no fuso `tz`
+  if (ms == null) return '';
+  const p = partesNoFuso(ms, tz);
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
-function localInputToMs(s) {
+/** "YYYY-MM-DDTHH:mm" lido como horário de parede do fuso `tz` -> instante (ms) */
+function localInputToMs(s, tz = TZ) {
   if (!s) return null;
-  const t = Date.parse(s + ':00-03:00');
-  return isNaN(t) ? null : t;
+  const g = Date.parse(s + ':00Z');
+  if (isNaN(g)) return null;
+  const t1 = g - tzOffsetMs(tz, g);
+  return g - tzOffsetMs(tz, t1);
+}
+/** Diferença do destino para Brasília neste instante, em texto. '' se for igual. */
+function diffFusoTxt(ms = Date.now()) {
+  const d = (tzOffsetMs(TZ, ms) - tzOffsetMs(TZ_BR, ms)) / 3600000;
+  if (!d) return '';
+  const a = Math.abs(d), h = Number.isInteger(a) ? a : String(a).replace('.', ',');
+  return `${h} h ${d < 0 ? 'a menos' : 'a mais'} que Brasília`;
+}
+/** Horário em Brasília e no destino (só mostra os dois quando diferem). `nome` = nome do destino. */
+function fmtDuplo(ms, nome) {
+  if (ms == null) return '';
+  if (tzOffsetMs(TZ, ms) === tzOffsetMs(TZ_BR, ms)) return fmtDataHora(ms, TZ);
+  const d = msToLocalInput(ms, TZ), b = msToLocalInput(ms, TZ_BR);
+  const dest = d.slice(0, 10) === b.slice(0, 10) ? d.slice(11, 16) : fmtDataHora(ms, TZ);
+  return `${fmtDataHora(ms, TZ_BR)} Brasília · ${dest} ${nome}`;
 }
 
 /* ---- cálculos do Painel (5.1 a 5.3) ---- */
@@ -466,6 +496,21 @@ function rotaTests() {
   eq('maré: ~2 baixas e ~2 altas por dia', [ex.baixas.length, ex.altas.length], [2, 2]);
   eq('maré: dia sem dados', extremosMare(tt, hh, '2027-01-01'), { baixas: [], altas: [] });
   eq('datetime-local round trip', msToLocalInput(localInputToMs('2026-11-11T15:00')), '2026-11-11T15:00');
+  eq('Brasília 10:00 = 13:00 UTC', localInputToMs('2026-11-11T10:00', TZ_BR), Date.parse('2026-11-11T13:00:00Z'));
+  eq('Curaçao 10:00 = 14:00 UTC', localInputToMs('2026-11-11T10:00', 'America/Curacao'), Date.parse('2026-11-11T14:00:00Z'));
+  eq('Lisboa em novembro 10:00 = 10:00 UTC', localInputToMs('2026-11-11T10:00', 'Europe/Lisbon'), Date.parse('2026-11-11T10:00:00Z'));
+  const tzAnt = TZ; setFuso('America/Curacao');
+  const voo = Date.parse('2026-11-11T13:45:00Z'); // sai 10:45 de Brasília = 09:45 em Curaçao
+  eq('Curaçao: 1 h a menos', diffFusoTxt(voo), '1 h a menos que Brasília');
+  eq('Curaçao: mostra os dois horários', fmtDuplo(voo, 'Curaçao'), '11/11 10:45 Brasília · 09:45 Curaçao');
+  eq('Curaçao: mesma data mostra só a hora', fmtDuplo(Date.parse('2026-11-12T02:30:00Z'), 'Curaçao'), '11/11 23:30 Brasília · 22:30 Curaçao');
+  eq('Curaçao: datas diferentes mostram as duas', fmtDuplo(Date.parse('2026-11-12T03:30:00Z'), 'Curaçao'), '12/11 00:30 Brasília · 11/11 23:30 Curaçao');
+  eq('Curaçao: ida de ida e volta no mesmo instante', msToLocalInput(voo, TZ), '2026-11-11T09:45');
+  setFuso('America/Recife');
+  eq('Recife = Brasília: sem duplicar', fmtDuplo(voo, 'Recife'), '11/11 10:45');
+  eq('Recife: sem diferença', diffFusoTxt(voo), '');
+  setFuso('Lixo/Inexistente'); eq('fuso inválido cai no padrão', TZ, 'America/Recife');
+  TZ = tzAnt;
   const falhas = out.filter((t) => !t.ok);
   if (typeof console !== 'undefined') {
     console.table(out.map((t) => ({ teste: t.nome, ok: t.ok ? '✅' : '❌', got: t.ok ? '' : t.got, want: t.ok ? '' : t.want })));
@@ -638,6 +683,7 @@ const sair = () => signOut(auth).catch(fail);
    ============================================================ */
 function render() {
   const app = $('app');
+  setFuso(viagem() && viagem().fuso); // horários passam a ser do destino da viagem aberta
   let html = '';
   if (S.auth === 'semconfig') html = telaSemConfig();
   else if (S.auth === 'loading') html = '<div class="splash"><div class="logo">🧭</div><h1>Rota</h1></div>';
@@ -646,6 +692,7 @@ function render() {
   else if (S.viagens === null) html = '<div class="splash"><div class="logo">🧭</div><p class="muted">Carregando…</p></div>';
   else if (!viagem()) html = telaViagens();
   else html = telaPrincipal();
+  setTimeout(atualizarRelogio, 0);
   app.innerHTML = (S.online ? '' : '<div class="offline">Sem conexão — o que você lançar sincroniza quando voltar</div>') + html;
 }
 
@@ -699,18 +746,21 @@ async function carregarClima() {
   if (!v || !v.destino || climaBuscando) return;
   const chave = 'rota-clima:' + v.id + ':' + v.destino;
   if (!S.clima) S.clima = lsJson(chave);
-  if (S.clima && Date.now() - S.clima.em < 3 * 3600 * 1000) return render();
+  const detectarFuso = () => { if (!v.fuso && S.clima && S.clima.geo && S.clima.geo.tz) patchViagem({ fuso: S.clima.geo.tz }); };
+  if (S.clima && S.clima.geo && S.clima.geo.tz && Date.now() - S.clima.em < 3 * 3600 * 1000) { detectarFuso(); return render(); }
   if (!navigator.onLine) return render();
   climaBuscando = true;
   try {
     let geo = S.clima && S.clima.geo;
-    if (!geo) {
-      const nome = v.destino.split(',')[0].trim();
-      const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(nome)}&count=1&language=pt&country=BR`)).json();
+    if (!geo || !geo.tz) {
+      const partes = v.destino.split(',').map((x) => x.trim());
+      const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(partes[0])}&count=5&language=pt`)).json();
       if (!g.results || !g.results.length) throw new Error('destino não encontrado');
-      geo = { lat: g.results[0].latitude, lon: g.results[0].longitude };
+      const br = partes[1] && /^[A-Za-z]{2}$/.test(partes[1]); // "Cidade, UF" => prefere o Brasil
+      const r = (br && g.results.find((x) => x.country_code === 'BR')) || g.results[0];
+      geo = { lat: r.latitude, lon: r.longitude, tz: r.timezone };
     }
-    const q = `latitude=${geo.lat}&longitude=${geo.lon}&timezone=America%2FRecife&forecast_days=16`;
+    const q = `latitude=${geo.lat}&longitude=${geo.lon}&timezone=${encodeURIComponent(geo.tz || TZ)}&forecast_days=16`;
     const [f, m] = await Promise.all([
       fetch(`https://api.open-meteo.com/v1/forecast?${q}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,uv_index_max`).then((r) => r.json()),
       fetch(`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=sea_level_height_msl`).then((r) => r.json()).catch(() => null),
@@ -722,6 +772,7 @@ async function carregarClima() {
     });
     S.clima = { geo, diario, mare: m && m.hourly ? { tempos: m.hourly.time, alturas: m.hourly.sea_level_height_msl } : (S.clima && S.clima.mare) || null, em: Date.now() };
     lsSet(chave, JSON.stringify(S.clima));
+    detectarFuso();
   } catch (e) { console.warn('clima', e); }
   climaBuscando = false;
   render();
@@ -749,6 +800,24 @@ function cardTempo(dia) {
   return `<div class="card"><h3>Tempo e maré</h3>${tempo}<div class="mt">${mare}</div></div>`;
 }
 
+/* ---------- Fuso horário do destino ---------- */
+const destinoNome = () => { const v = viagem(); return (v && v.destino ? v.destino.split(',')[0].trim() : '') || 'destino'; };
+const fusoDifere = () => { const v = viagem(); const ref = v ? Date.parse(v.dataInicio + 'T12:00:00Z') : Date.now(); return tzOffsetMs(TZ, ref) !== tzOffsetMs(TZ_BR, ref); };
+const tzDe = (k) => (k === 'br' ? TZ_BR : TZ);
+const fmtHora = (ms) => fmtDuplo(ms, destinoNome());
+function brDe(ms) { // "10:45 em Brasília" quando o destino tem outro horário
+  if (ms == null || tzOffsetMs(TZ, ms) === tzOffsetMs(TZ_BR, ms)) return '';
+  const b = msToLocalInput(ms, TZ_BR), d = msToLocalInput(ms, TZ);
+  return (b.slice(0, 10) === d.slice(0, 10) ? b.slice(11, 16) : fmtDataHora(ms, TZ_BR)) + ' em Brasília';
+}
+function atualizarRelogio() {
+  const a = document.getElementById('rel-dest'), b = document.getElementById('rel-br');
+  if (!a || !b) return;
+  const f = (tz) => new Intl.DateTimeFormat('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' }).format(new Date());
+  a.textContent = f(TZ); b.textContent = f(TZ_BR);
+}
+setInterval(atualizarRelogio, 15000);
+
 /* ---------- Hoje ---------- */
 const dataDe = (ms) => msToLocalInput(ms).slice(0, 10);
 const horaDe = (ms) => msToLocalInput(ms).slice(11, 16);
@@ -762,7 +831,7 @@ function alertasHtml() {
   let html = '';
   for (const p of prazosProximos(S.reservas, agoraMs())) {
     const q = p.dias <= 0 ? 'hoje' : p.dias === 1 ? 'em 1 dia' : `em ${p.dias} dias`;
-    html += `<div class="alert coral"><b>⏰ Prazo ${q}</b>${esc(p.descricao || p.reserva.titulo)} — ${esc(p.reserva.titulo)} (${fmtDataHora(p.quando)})</div>`;
+    html += `<div class="alert coral"><b>⏰ Prazo ${q}</b>${esc(p.descricao || p.reserva.titulo)} — ${esc(p.reserva.titulo)} (${fmtHora(p.quando)})</div>`;
   }
   for (const r of S.reservas.filter((r) => r.status === 'problema' || r.status === 'pendente')) {
     const bad = r.status === 'problema';
@@ -774,11 +843,11 @@ function eventosDoDia(dia) {
   const ev = [];
   for (const r of S.reservas.filter((r) => r.status !== 'cancelada')) {
     const hosp = r.tipo === 'hospedagem';
-    if (r.inicio != null && dataDe(r.inicio) === dia) ev.push({ hora: horaDe(r.inicio), emoji: TIPO_RES[r.tipo] || '📌', titulo: (hosp ? 'Check-in — ' : '') + r.titulo, reserva: true });
-    if (r.fim != null && dataDe(r.fim) === dia && r.fim !== r.inicio) ev.push({ hora: horaDe(r.fim), emoji: TIPO_RES[r.tipo] || '📌', titulo: (hosp ? 'Check-out — ' : r.tipo === 'voo' ? 'Chegada/volta — ' : 'Fim — ') + r.titulo, reserva: true });
+    if (r.inicio != null && dataDe(r.inicio) === dia) ev.push({ ms: r.inicio, hora: horaDe(r.inicio), emoji: TIPO_RES[r.tipo] || '📌', titulo: (hosp ? 'Check-in — ' : '') + r.titulo, reserva: true });
+    if (r.fim != null && dataDe(r.fim) === dia && r.fim !== r.inicio) ev.push({ ms: r.fim, hora: horaDe(r.fim), emoji: TIPO_RES[r.tipo] || '📌', titulo: (hosp ? 'Check-out — ' : r.tipo === 'voo' ? 'Chegada/volta — ' : 'Fim — ') + r.titulo, reserva: true });
   }
   const doc = achar(S.roteiro, dia);
-  ((doc && doc.blocos) || []).forEach((b, i) => ev.push({ hora: b.hora, emoji: TIPO_BLOCO[b.tipo] || '📌', titulo: b.titulo, notas: b.notas, bloco: i }));
+  ((doc && doc.blocos) || []).forEach((b, i) => ev.push({ ms: localInputToMs(dia + 'T' + b.hora), hora: b.hora, emoji: TIPO_BLOCO[b.tipo] || '📌', titulo: b.titulo, notas: b.notas, bloco: i }));
   return ev.sort((a, b) => a.hora.localeCompare(b.hora));
 }
 function abaHoje() {
@@ -786,6 +855,7 @@ function abaHoje() {
   const pg = podeGastarHoje(v, S.reservas, S.gastos, h);
   const n = diasEntre(v.dataInicio, dia) + 1;
   let html = `<div class="top"><div><h1>${esc(v.nome)}</h1><small>${pg.estado === 'antes' ? (diasEntre(h, v.dataInicio) === 1 ? 'Falta 1 dia' : `Faltam ${diasEntre(h, v.dataInicio)} dias`) : pg.estado === 'depois' ? 'Viagem concluída' : esc(v.destino)}</small></div></div>
+    ${fusoDifere() ? `<div class="clock">🕘 <b>${esc(destinoNome())}</b> <span id="rel-dest"></span> · <b>Brasília</b> <span id="rel-br"></span><br><span class="muted small">${esc(diffFusoTxt())}</span></div>` : ''}
     <div class="daynav"><button data-act="diaMov" data-v="-1" ${dia <= v.dataInicio ? 'disabled' : ''}>‹</button>
       <button class="mid" data-act="diaHoje"><b>Dia ${n} de ${pg.dias}</b><br><span class="muted small">${fmtDiaLongo(dia)}${dia === h ? ' · hoje' : ''}</span></button>
       <button data-act="diaMov" data-v="1" ${dia >= v.dataFim ? 'disabled' : ''}>›</button></div>`;
@@ -809,9 +879,9 @@ function abaHoje() {
 
   // plano do dia
   const ev = eventosDoDia(dia), rot = achar(S.roteiro, dia) || {};
-  html += `<div class="card"><div class="row between"><h3 style="margin:0">Plano do dia</h3><div><button class="btn sm" data-act="novoBloco" data-v="${dia}">+ Item</button></div></div>
+  html += `<div class="card"><div class="row between"><h3 style="margin:0">Plano do dia${fusoDifere() ? ` · horário de ${esc(destinoNome())}` : ''}</h3><div><button class="btn sm" data-act="novoBloco" data-v="${dia}">+ Item</button></div></div>
     ${ev.length ? ev.map((e) => `<button class="plan" ${e.bloco != null ? `data-act="editBloco" data-v="${dia}" data-i="${e.bloco}"` : 'data-act="ir" data-tab="viagem" data-v="reservas"'}>
-      <span class="hr num">${esc(e.hora)}</span><span class="grow"><span>${e.emoji}</span> ${esc(e.titulo)}${e.notas ? `<br><span class="muted small">${esc(e.notas)}</span>` : ''}</span></button>`).join('')
+      <span class="hr num">${esc(e.hora)}</span><span class="grow"><span>${e.emoji}</span> ${esc(e.titulo)}${brDe(e.ms) ? `<br><span class="muted small">= ${esc(brDe(e.ms))}</span>` : ''}${e.notas ? `<br><span class="muted small">${esc(e.notas)}</span>` : ''}</span></button>`).join('')
       : '<div class="muted small mt">Nada planejado. Toque em “+ Item”.</div>'}
     <div class="actions"><button class="btn sm ghost" data-act="mares" data-v="${dia}">🌊 Marés do dia</button></div></div>`;
 
@@ -943,10 +1013,10 @@ function abaReservas() {
       <div class="row between"><b>${TIPO_RES[r.tipo] || '📌'} ${esc(r.titulo)}</b><button class="btn sm ghost" data-act="editReserva" data-id="${esc(r.id)}">Editar</button></div>
       <div class="muted small">${esc(r.fornecedor)}</div>
       <div class="mt"><span class="badge ${st[1]}">${st[0]}</span> <span class="badge ${pg[1]}">${pg[0]}</span></div>
-      <div class="kv"><span>Quando:</span> ${r.inicio ? fmtDataHora(r.inicio) : '—'}${r.fim ? ' → ' + fmtDataHora(r.fim) : ''}</div>
+      <div class="kv"><span>Quando:</span> ${r.inicio ? fmtHora(r.inicio) : '—'}${r.fim ? '<br>→ ' + fmtHora(r.fim) : ''}</div>
       <div class="kv"><span>Valor:</span> <b class="num">${brl(r.valorCentavos)}</b>${r.pagoPor ? ` <span>· pago por</span> ${esc(nomeDe(r.pagoPor))}` : ''}</div>
       ${r.detalhes ? `<div class="kv">${esc(r.detalhes)}</div>` : ''}
-      ${r.prazoCritico && r.prazoCritico.quando ? `<div class="infobox">⏰ ${esc(r.prazoCritico.descricao)} — ${fmtDataHora(r.prazoCritico.quando)}</div>` : ''}
+      ${r.prazoCritico && r.prazoCritico.quando ? `<div class="infobox">⏰ ${esc(r.prazoCritico.descricao)} — ${fmtHora(r.prazoCritico.quando)}</div>` : ''}
       ${r.notas ? `<div class="warnbox">${esc(r.notas)}</div>` : ''}
       ${r.codigo ? `<div class="kv"><span>Código (segure para revelar):</span></div>
         <div class="row"><div class="code" data-reveal="${esc(r.id)}">${rev ? esc(r.codigo) : mascarar(r.codigo)}</div>
@@ -963,6 +1033,9 @@ function formReserva(r) {
   r = r || { tipo: 'hospedagem', status: 'confirmada', statusPagamento: 'nao_cobrado', pagoPor: '' };
   const sel = (name, pares, cur) => `<select name="${name}">${pares.map(([k, l]) => `<option value="${esc(k)}" ${cur === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   const pq = r.prazoCritico || {};
+  const dif = fusoDifere();
+  const fz = { inicio: r.inicioFuso || (novo && r.tipo === 'voo' ? 'br' : 'dest'), fim: r.fimFuso || 'dest', prazo: r.prazoFuso || 'dest' };
+  const seletorFuso = (nome, cur) => (dif ? `<select name="${nome}"><option value="br" ${cur === 'br' ? 'selected' : ''}>Horário de Brasília</option><option value="dest" ${cur === 'dest' ? 'selected' : ''}>Horário de ${esc(destinoNome())}</option></select>` : `<input type="hidden" name="${nome}" value="dest">`);
   return `<form data-form="reserva" data-id="${esc(r.id || '')}" autocomplete="off">
     <h2>${novo ? 'Nova reserva' : 'Editar reserva'}</h2>
     <div class="grid2"><label class="f">Tipo${sel('tipo', Object.keys(TIPO_RES).map((k) => [k, k]), r.tipo)}</label>
@@ -972,11 +1045,12 @@ function formReserva(r) {
     <div class="grid2"><label class="f">Valor (R$)<input name="valor" inputmode="decimal" value="${centsToInput(r.valorCentavos)}"></label>
       <label class="f">Pagamento${sel('statusPagamento', Object.entries(PAG_RES).map(([k, v]) => [k, v[0]]), r.statusPagamento)}</label></div>
     <label class="f">Pago por${sel('pagoPor', [['', '—']].concat(membros().concat(membros().length > 1 ? ['ambos'] : []).map((e) => [e, nomeDe(e)])), r.pagoPor || '')}</label>
-    <div class="grid2"><label class="f">Início<input type="datetime-local" name="inicio" value="${msToLocalInput(r.inicio)}"></label>
-      <label class="f">Fim<input type="datetime-local" name="fim" value="${msToLocalInput(r.fim)}"></label></div>
+    ${dif ? `<div class="infobox">${esc(destinoNome())} tem ${esc(diffFusoTxt(Date.parse(viagem().dataInicio + 'T12:00:00Z')))}. Digite cada horário <b>como está impresso</b> (passagem, voucher) e escolha de qual lugar ele é.</div>` : ''}
+    <label class="f">Início<input type="datetime-local" name="inicio" value="${msToLocalInput(r.inicio, tzDe(fz.inicio))}">${seletorFuso('inicioFuso', fz.inicio)}</label>
+    <label class="f">Fim<input type="datetime-local" name="fim" value="${msToLocalInput(r.fim, tzDe(fz.fim))}">${seletorFuso('fimFuso', fz.fim)}</label>
     <label class="f">Detalhes<textarea name="detalhes">${esc(r.detalhes || '')}</textarea></label>
-    <div class="grid2"><label class="f">Prazo crítico<input type="datetime-local" name="prazoQuando" value="${msToLocalInput(pq.quando)}"></label>
-      <label class="f">Descrição do prazo<input name="prazoDesc" value="${esc(pq.descricao || '')}"></label></div>
+    <label class="f">Prazo crítico<input type="datetime-local" name="prazoQuando" value="${msToLocalInput(pq.quando, tzDe(fz.prazo))}">${seletorFuso('prazoFuso', fz.prazo)}</label>
+    <label class="f">Descrição do prazo<input name="prazoDesc" value="${esc(pq.descricao || '')}"></label>
     <label class="f">Link oficial<input name="linkOficial" type="url" value="${esc(r.linkOficial || '')}"></label>
     <label class="f">Canal de atendimento<textarea name="canalAtendimento">${esc(r.canalAtendimento || '')}</textarea></label>
     <label class="f">Código da reserva (sensível — só fica no banco)<input name="codigo" value="${esc(r.codigo || '')}" autocapitalize="characters"></label>
@@ -992,11 +1066,12 @@ function salvarReserva(fd, id) {
   const raw = String(fd.get('valor') || '').trim();
   const valor = raw ? parseMoney(raw) : 0;
   if (Number.isNaN(valor)) return 'Valor inválido.';
-  const pq = localInputToMs(fd.get('prazoQuando'));
+  const pq = localInputToMs(fd.get('prazoQuando'), tzDe(fd.get('prazoFuso')));
   const dados = {
     tipo: fd.get('tipo'), titulo, fornecedor: String(fd.get('fornecedor') || '').trim(), status: fd.get('status'),
     valorCentavos: valor, statusPagamento: fd.get('statusPagamento'), pagoPor: fd.get('pagoPor') || null,
-    inicio: toTs(localInputToMs(fd.get('inicio'))), fim: toTs(localInputToMs(fd.get('fim'))),
+    inicio: toTs(localInputToMs(fd.get('inicio'), tzDe(fd.get('inicioFuso')))), fim: toTs(localInputToMs(fd.get('fim'), tzDe(fd.get('fimFuso')))),
+    inicioFuso: fd.get('inicioFuso') || 'dest', fimFuso: fd.get('fimFuso') || 'dest', prazoFuso: fd.get('prazoFuso') || 'dest',
     detalhes: String(fd.get('detalhes') || '').trim(),
     prazoCritico: pq != null ? { quando: toTs(pq), descricao: String(fd.get('prazoDesc') || '').trim() } : null,
     linkOficial: String(fd.get('linkOficial') || '').trim(), canalAtendimento: String(fd.get('canalAtendimento') || '').trim(),
@@ -1206,6 +1281,7 @@ function abaConfig() {
   const v = viagem(), tema = lsGet('rota-tema') || 'sistema';
   return `<div class="top"><h1>Configurações</h1></div>
     <div class="card"><h3>Viagem</h3><div><b>${esc(v.nome)}</b></div><div class="muted small">${esc(v.destino)} · ${fmtDia(v.dataInicio)} a ${fmtDia(v.dataFim)} · orçamento ${brl(v.orcamentoCentavos)}</div>
+      <div class="muted small mt">🕘 Fuso: ${esc(TZ)}${fusoDifere() ? ' · ' + esc(diffFusoTxt(Date.parse(v.dataInicio + 'T12:00:00Z'))) : ' · mesmo horário de Brasília'}</div>
       <div class="actions"><button class="btn sm" data-act="editViagem">Editar dados</button><button class="btn sm" data-act="novaViagem">Criar nova viagem</button>
       ${S.viagens.length > 1 ? '<button class="btn sm" data-act="trocarViagem">Trocar viagem</button>' : ''}</div></div>
     <div class="card"><h3>Membros</h3>${(v.membrosEmails || []).map((e) => `<div class="row between kv"><span>${esc(nomeDe(e))} <span class="muted small">${esc(e)}</span></span><span><button class="btn sm ghost" data-act="renMembro" data-v="${esc(e)}">Renomear</button>${e !== meuEmail() ? ` <button class="btn sm ghost" data-act="rmMembro" data-v="${esc(e)}">Remover</button>` : ''}</span></div>`).join('')}
@@ -1221,7 +1297,9 @@ function formViagem(v) {
   v = v || { nome: '', destino: '', dataInicio: '', dataFim: '', orcamentoCentavos: null };
   return `<form data-form="viagem" data-id="${esc(v.id || '')}" autocomplete="off"><h2>${novo ? 'Nova viagem' : 'Editar viagem'}</h2>
     <label class="f">Nome<input name="nome" value="${esc(v.nome)}" required></label>
-    <label class="f">Destino<input name="destino" value="${esc(v.destino)}"></label>
+    <label class="f">Destino<input name="destino" value="${esc(v.destino)}" placeholder="ex.: Curaçao  ou  Gramado, RS"></label>
+    <label class="f">Fuso horário do destino <span class="muted">(deixe vazio para detectar sozinho)</span><input name="fuso" list="fusos" value="${esc(v.fuso || '')}" placeholder="ex.: America/Curacao"></label>
+    <datalist id="fusos">${['America/Sao_Paulo', 'America/Recife', 'America/Manaus', 'America/Noronha', 'America/Rio_Branco', 'America/Curacao', 'America/Aruba', 'America/Bogota', 'America/Santiago', 'America/Argentina/Buenos_Aires', 'America/Montevideo', 'America/New_York', 'America/Cancun', 'Europe/Lisbon', 'Europe/Madrid', 'Europe/Paris', 'Europe/London', 'Europe/Rome', 'Atlantic/Azores', 'Asia/Tokyo', 'Asia/Dubai'].map((z) => `<option value="${z}">`).join('')}</datalist>
     <div class="grid2"><label class="f">Início<input type="date" name="dataInicio" value="${esc(v.dataInicio)}" required></label>
       <label class="f">Fim<input type="date" name="dataFim" value="${esc(v.dataFim)}" required></label></div>
     <label class="f">Orçamento (R$)<input name="orcamento" inputmode="decimal" value="${centsToInput(v.orcamentoCentavos)}"></label>
@@ -1234,6 +1312,11 @@ function salvarViagem(fd, id) {
   const orc = parseMoney(fd.get('orcamento') || '0');
   if (Number.isNaN(orc)) return 'Orçamento inválido.';
   const dados = { nome, destino: String(fd.get('destino') || '').trim(), dataInicio: ini, dataFim: fim, orcamentoCentavos: orc, atualizadoEm: serverTimestamp() };
+  const fusoDigitado = String(fd.get('fuso') || '').trim();
+  if (fusoDigitado && !fusoValido(fusoDigitado)) return 'Fuso horário inválido. Use o formato Continente/Cidade, ex.: America/Curacao.';
+  const anterior = id ? achar(S.viagens, id) : null;
+  if (fusoDigitado) dados.fuso = fusoDigitado;
+  else if (!anterior || anterior.destino !== dados.destino) { dados.fuso = null; S.clima = null; } // destino novo: detecta de novo
   if (id) setDoc(doc(db, 'viagens', id), dados, { merge: true }).catch(fail);
   else {
     const ref = doc(collection(db, 'viagens'));
@@ -1251,7 +1334,7 @@ function formBloco(dia, i) {
   const doc_ = achar(S.roteiro, dia), b = i != null && doc_ ? doc_.blocos[i] : null;
   const x = b || { hora: '09:00', titulo: '', tipo: 'outro', notas: '' };
   return `<form data-form="bloco" data-id="${esc(dia)}" data-i="${i ?? ''}" autocomplete="off"><h2>${b ? 'Editar item' : 'Novo item'} · ${fmtDiaLongo(dia)}</h2>
-    <div class="grid2"><label class="f">Hora<input type="time" name="hora" value="${esc(x.hora)}" required></label>
+    <div class="grid2"><label class="f">Hora${fusoDifere() ? ` (horário de ${esc(destinoNome())})` : ''}<input type="time" name="hora" value="${esc(x.hora)}" required></label>
     <label class="f">Tipo<select name="tipo">${Object.entries(TIPO_BLOCO).map(([k, e]) => `<option value="${k}" ${x.tipo === k ? 'selected' : ''}>${e} ${k}</option>`).join('')}</select></label></div>
     <label class="f">O que é<input name="titulo" value="${esc(x.titulo)}" required></label>
     <label class="f">Notas<input name="notas" value="${esc(x.notas || '')}"></label>
@@ -1473,6 +1556,15 @@ document.addEventListener('click', (e) => {
   if (el.tagName === 'A' && el.dataset.act === 'zapSusp' && !confirm('⚠️ Contato SUSPEITO (possível golpe). Abrir WhatsApp mesmo assim?')) e.preventDefault();
   else if (el.tagName !== 'A' && el.type !== 'checkbox') e.preventDefault();
   fn(el.dataset);
+});
+
+/* Reserva do tipo voo: sai no horário de Brasília e chega no do destino (dá para trocar) */
+document.addEventListener('change', (e) => {
+  const sel = e.target;
+  if (!sel.matches || !sel.matches('form[data-form=reserva] select[name=tipo]') || sel.value !== 'voo') return;
+  const f = sel.form, i = f.elements.inicioFuso, fim = f.elements.fimFuso;
+  if (i && i.tagName === 'SELECT') i.value = 'br';
+  if (fim && fim.tagName === 'SELECT') fim.value = 'dest';
 });
 
 document.addEventListener('submit', (e) => {
