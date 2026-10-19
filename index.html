@@ -804,7 +804,7 @@ function cardTempo(dia) {
 const destinoNome = () => { const v = viagem(); return (v && v.destino ? v.destino.split(',')[0].trim() : '') || 'destino'; };
 const fusoDifere = () => { const v = viagem(); const ref = v ? Date.parse(v.dataInicio + 'T12:00:00Z') : Date.now(); return tzOffsetMs(TZ, ref) !== tzOffsetMs(TZ_BR, ref); };
 const tzDe = (k) => (k === 'br' ? TZ_BR : TZ);
-const fmtHora = (ms) => fmtDuplo(ms, destinoNome());
+const fmtHora = (ms) => esc(fmtDuplo(ms, destinoNome())); // já escapado: o nome do destino é texto digitado pelo usuário e vai para innerHTML
 function brDe(ms) { // "10:45 em Brasília" quando o destino tem outro horário
   if (ms == null || tzOffsetMs(TZ, ms) === tzOffsetMs(TZ_BR, ms)) return '';
   const b = msToLocalInput(ms, TZ_BR), d = msToLocalInput(ms, TZ);
