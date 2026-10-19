@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
-/* ===== Tema (paleta Recife: mar, sol, frevo) ===== */
+/* ===== Tema (paleta alegre: mar, sol, frevo) ===== */
 :root{
   /* claro: areia + mar */
   --bg:#FFF6E5; --s1:#FFFFFF; --s2:#FFEBC9; --line:#F3DDB6;
@@ -655,7 +655,7 @@ function telaSemConfig() {
 }
 function telaLogin() {
   return `<div class="splash"><div class="logo">🧭</div><h1>Rota</h1>
-    <p class="muted">Viagens do Vitor e da Thais</p>
+    <p class="muted">Suas viagens, em um só lugar</p>
     <button class="btn pri" data-act="entrar">Entrar com Google</button>${S.erro ? `<p class="err">${esc(S.erro)}</p>` : ''}</div>`;
 }
 function telaNegado() {
@@ -676,9 +676,8 @@ function telaViagens() {
   return `<div class="screen"><div class="top"><h1>Suas viagens</h1><button class="btn sm" data-act="sair">Sair</button></div>
     ${vs.length ? vs.map((v) => `<button class="item" data-act="abrirViagem" data-id="${esc(v.id)}"><span class="ico">🧭</span>
        <span class="grow"><b>${esc(v.nome)}</b><br><span class="muted small">${esc(v.destino)} · ${fmtDia(v.dataInicio)} a ${fmtDia(v.dataFim)}</span></span></button>`).join('')
-      : `<div class="card center"><p class="muted">Você ainda não tem nenhuma viagem.</p>
-         <button class="btn pri block" data-act="seed">Criar viagem de exemplo: Porto de Galinhas 2026</button></div>`}
-    <button class="btn block ${vs.length ? '' : 'ghost'} mt" data-act="novaViagem">+ Nova viagem em branco</button></div>`;
+      : `<div class="card center"><div style="font-size:42px">🧭</div><p class="muted">Você ainda não tem nenhuma viagem.<br>Crie a primeira e convide quem vai com você.</p></div>`}
+    <button class="btn block ${vs.length ? 'ghost' : 'pri'} mt" data-act="novaViagem">+ Nova viagem</button></div>`;
 }
 
 function telaPrincipal() {
@@ -1336,7 +1335,7 @@ function salvarNota(fd, dia) {
 }
 const LISTA_PESSOAL = {
   roupas: ['Camisetas/regatas (5)', 'Bermudas/shorts (3)', 'Roupa de banho (2)', 'Roupa leve para a noite', 'Roupa de treino', 'Casaquinho leve (vento à noite)', 'Roupa íntima', 'Meias', 'Roupa de dormir'],
-  calcados: ['Chinelo', 'Sapatilha para recifes', 'Tênis leve', 'Óculos de sol', 'Chapéu/boné'],
+  calcados: ['Chinelo', 'Sapatilha aquática', 'Tênis leve', 'Óculos de sol', 'Chapéu/boné'],
   higiene: ['Escova e pasta de dente', 'Desodorante', 'Shampoo e condicionador', 'Hidratante pós-sol', 'Protetor labial com FPS', 'Itens de cabelo e barba'],
   saude: ['Remédios de uso pessoal', 'Analgésico', 'Antialérgico', 'Curativos'],
   eletronicos: ['Carregador do celular', 'Fone de ouvido', 'Cabo extra'],
@@ -1368,43 +1367,6 @@ function checkSugestoes() {
   if (!novos && !ajustados) return toast('Todas as sugestões já estão nas malas.');
   b.commit().catch(fail);
   toast(`${novos} itens adicionados${ajustados ? `, ${ajustados} arrumados` : ''}`);
-}
-
-/* ---------- Dados iniciais: Porto de Galinhas ---------- */
-function criarViagemExemplo() {
-  const me = meuEmail();
-  const vref = doc(collection(db, 'viagens'));
-  const t = (s) => new Date(s + ':00-03:00');
-  const b = writeBatch(db);
-  b.set(vref, {
-    nome: 'Porto de Galinhas 2026', destino: 'Porto de Galinhas, PE', dataInicio: '2026-11-11', dataFim: '2026-11-16',
-    orcamentoCentavos: 700000, membrosEmails: [me], membrosNomes: { [me]: primeiroNome() },
-    criadoEm: serverTimestamp(), atualizadoEm: serverTimestamp(),
-  });
-  const R = (o) => b.set(doc(collection(vref, 'reservas')), { pagoPor: null, codigo: '', ...o });
-  R({ tipo: 'hospedagem', titulo: 'Airbnb na vila — 50 m da praia', fornecedor: 'Airbnb', status: 'confirmada', statusPagamento: 'pago', pagoPor: me,
-    valorCentavos: 177000, inicio: t('2026-11-11T15:00'), fim: t('2026-11-16T12:00'),
-    detalhes: '5 noites × R$ 354. Self check-in com fechadura eletrônica (senha chega pelo app Airbnb). Apartamento inteiro, 1 quarto, piscina no rooftop.',
-    prazoCritico: { quando: t('2026-11-10T15:00'), descricao: 'Fim do cancelamento gratuito' },
-    linkOficial: 'https://www.airbnb.com.br/trips',
-    canalAtendimento: 'Mensagens pelo app Airbnb. Atendimento Airbnb 24h pela Central de Ajuda no app.',
-    notas: 'Pagamentos SÓ pelo app Airbnb. Pedido de Pix, depósito ou taxa extra = golpe.', ordem: 1 });
-  R({ tipo: 'voo', titulo: 'Azul direto GRU ⇄ REC', fornecedor: 'Azul via Booking.com', status: 'problema', statusPagamento: 'nao_cobrado',
-    valorCentavos: 196600, inicio: t('2026-11-11T10:45'), fim: t('2026-11-16T15:50'),
-    detalhes: 'Ida 11/11 GRU 10h45 → REC 13h50. Volta 16/11 REC 12h30 → GRU 15h50.', prazoCritico: null,
-    linkOficial: 'https://www.booking.com',
-    canalAtendimento: 'SÓ pelo app/site Booking LOGADO → Minhas reservas → Atendimento. Nunca ligar para número achado no Google.',
-    notas: 'Reserva ficou pendente, sem cobrança. Não comprar de novo antes de saber o status. Se cair, comprar direto no site/app da Azul. Conferir se R$ 983 inclui taxas e bagagem despachada.', ordem: 2 });
-  const C = (o) => b.set(doc(collection(vref, 'contatos')), { telefone: '', telefoneNormalizado: '', fonte: '', precoCombinadoCentavos: null, notas: '', ...o });
-  C({ nome: 'Anfitriã do Airbnb', tipo: 'hospedagem', selo: 'verificado', fonte: 'Página oficial da reserva no app Airbnb',
-    alerta: 'Número oficial é o do app. Se alguém de outro número disser ser a anfitriã, desconfiar. Pagamentos só pelo app.' });
-  C({ nome: 'Atendimento Booking.com', tipo: 'atendimento', selo: 'verificado', fonte: '—',
-    alerta: 'Telefone oficial só aparece logado no app. Todos os números do Google são golpe.' });
-  C({ nome: 'Transfer Recife → Porto', tipo: 'transfer', selo: 'nao_verificado', alerta: 'Usar empresa avaliada ou Uber/99. Desconfiar de abordagem no desembarque.' });
-  C({ nome: 'Jangadas — piscinas naturais', tipo: 'jangada', selo: 'nao_verificado', alerta: 'Contratar só no ponto oficial da associação de jangadeiros, preço tabelado.' });
-  b.commit().catch(fail);
-  S.viagemId = null;
-  toast('Criando viagem de exemplo…');
 }
 
 /* ============================================================
@@ -1450,7 +1412,6 @@ const ACT = {
   sub: (d) => { S.sub = d.v || null; render(); window.scrollTo(0, 0); },
   abrirViagem: (d) => abrirViagem(d.id),
   trocarViagem: () => { unsubSub.forEach((f) => f()); unsubSub = []; S.viagemId = null; render(); },
-  seed: criarViagemExemplo,
   novaViagem: () => openSheet(formViagem()),
   editViagem: () => openSheet(formViagem(viagem())),
   novoGasto: () => { openSheet(formGasto()); setTimeout(() => { const i = $('f-valor'); if (i) i.focus(); }, 60); },
