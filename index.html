@@ -125,6 +125,8 @@ nav button.on{color:var(--acc)}
 .legend{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:13px}
 .legend b{display:block;font-size:15px}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.catrow{display:block;width:100%;background:none;border:0;padding:0;text-align:left;color:inherit;font:inherit}
+.catrow:active{opacity:.6}
 .hbar{height:8px;border-radius:4px;background:var(--s2);overflow:hidden;margin-top:4px}
 .hbar i{display:block;height:100%;background:var(--acc)}
 
@@ -946,7 +948,7 @@ function abaGastos() {
   html = html.replace('<div class="seg">', cardOrcamento() + '<div class="seg">');
   if (Object.keys(totalCat).length) {
     html += `<div class="card"><h3>Por categoria</h3>${Object.entries(totalCat).sort((a, b) => b[1] - a[1]).map(([k, c]) =>
-      `<div class="mt"><div class="row between small"><span>${catInfo(k)[1]} ${catInfo(k)[2]}</span><b class="num">${brl(c)}</b></div><div class="hbar"><i style="width:${(c / maxCat * 100).toFixed(1)}%"></i></div></div>`).join('')}</div>`;
+      `<button class="catrow mt" data-act="verCategoria" data-v="${esc(k)}"><div class="row between small"><span>${catInfo(k)[1]} ${catInfo(k)[2]}</span><span><b class="num">${brl(c)}</b> <span class="muted">›</span></span></div><div class="hbar"><i style="width:${(c / maxCat * 100).toFixed(1)}%"></i></div></button>`).join('')}<div class="muted small mt">Toque numa categoria para ver cada gasto.</div></div>`;
   }
 
   if (!lista.length) html += `<div class="card center muted">Nenhum gasto ${f.tipo === 'previsto' ? 'previsto ' : ''}por aqui ainda.</div>`;
@@ -959,6 +961,22 @@ function abaGastos() {
       <span class="v">${brl(g.valorCentavos)}</span></button>`).join('');
   }
   return html;
+}
+
+/** Folha com todos os gastos de uma categoria (respeita Realizados/Previstos e o filtro de pessoa) */
+function sheetCategoria(k) {
+  const f = S.fGasto, [, emoji, nome] = catInfo(k);
+  const l = S.gastos.filter((g) => g.tipo === f.tipo && g.categoria === k && (!f.pessoa || g.pagoPor === f.pessoa))
+    .sort((a, b) => b.data.localeCompare(a.data) || (b.criadoEm || 0) - (a.criadoEm || 0));
+  const total = l.reduce((s_, g) => s_ + g.valorCentavos, 0);
+  const porDia = {};
+  l.forEach((g) => (porDia[g.data] = porDia[g.data] || []).push(g));
+  return `<div class="row between"><h2 style="margin:0">${emoji} ${esc(nome)}</h2><b class="num">${brl(total)}</b></div>
+    <div class="muted small" style="margin:2px 0 8px">${l.length} ${l.length === 1 ? 'gasto' : 'gastos'} ${f.tipo === 'previsto' ? 'previstos' : 'realizados'}${f.pessoa ? ' · ' + esc(nomeDe(f.pessoa)) : ''}</div>
+    ${Object.keys(porDia).sort().reverse().map((dia) => `<div class="day" style="margin-top:12px"><span>${fmtDiaLongo(dia)}</span><span class="num">${brl(porDia[dia].reduce((s_, g) => s_ + g.valorCentavos, 0))}</span></div>
+      ${porDia[dia].map((g) => `<button class="item ${g.tipo === 'previsto' ? 'prev' : ''}" data-act="editGasto" data-id="${esc(g.id)}">
+        <span class="grow"><b>${esc(g.descricao || nome)}</b><br><span class="muted small">${esc(nomeDe(g.pagoPor))} · ${esc(formaNome(g.forma))}</span></span><span class="v">${brl(g.valorCentavos)}</span></button>`).join('')}`).join('') || '<div class="muted center" style="padding:16px">Nenhum gasto nesta categoria.</div>'}
+    <button class="btn block mt" data-act="fechar">Fechar</button>`;
 }
 
 function formGasto(g) {
@@ -1497,6 +1515,7 @@ const ACT = {
   trocarViagem: () => { unsubSub.forEach((f) => f()); unsubSub = []; S.viagemId = null; render(); },
   novaViagem: () => openSheet(formViagem()),
   editViagem: () => openSheet(formViagem(viagem())),
+  verCategoria: (d) => openSheet(sheetCategoria(d.v)),
   novoGasto: () => { openSheet(formGasto()); setTimeout(() => { const i = $('f-valor'); if (i) i.focus(); }, 60); },
   editGasto: (d) => openSheet(formGasto(achar(S.gastos, d.id))),
   delGasto: (d) => { if (confirm('Excluir este gasto?')) { deleteDoc(dRef('gastos', d.id)).catch(fail); closeSheet(); } },
